@@ -96,54 +96,90 @@ def make_label_pairs(label_names: Sequence[str], label_values: Sequence[str]) ->
     return [PBLabelPair(name=name, value=value) for name, value in zip(label_names, label_values)]
 
 
-def convert_timestamp_to_ms(timestamp: Union[Timestamp, float]) -> float:
+def convert_timestamp_to_ms(timestamp: Union[Timestamp, float]) -> int:
     return int(float(timestamp) * 1_000)
 
 
-def make_untyped_metric(label_names: Sequence[str], label_values: Sequence[str], value: float, timestamp: Optional[Union[Timestamp, float]]) -> PBMetric:
+def make_untyped_metric(
+    label_names: Sequence[str],
+    label_values: Sequence[str],
+    value: float,
+    timestamp: Optional[Union[Timestamp, float]],
+) -> PBMetric:
     return PBMetric(
         label=make_label_pairs(label_names, label_values),
         untyped=PBUntyped(value=value),
-        timestamp_ms=convert_timestamp_to_ms(timestamp) if timestamp else None,
+        timestamp_ms=convert_timestamp_to_ms(timestamp) if timestamp is not None else None,
     )
 
 
-def make_counter_metric(label_names: Sequence[str], label_values: Sequence[str], value: float, timestamp: Optional[Union[Timestamp, float]], exemplar: Optional[Exemplar], created: Optional[float]) -> PBMetric:
+def make_counter_metric(
+    label_names: Sequence[str],
+    label_values: Sequence[str],
+    value: float,
+    timestamp: Optional[Union[Timestamp, float]],
+    exemplar: Optional[Exemplar],
+    created: Optional[float],
+) -> PBMetric:
     return PBMetric(
         label=make_label_pairs(label_names, label_values),
         counter=PBCounter(
             value=value,
             exemplar=None,  # alesieur
-            created_timestamp=datetime.datetime.fromtimestamp(created),
+            created_timestamp=datetime.datetime.fromtimestamp(created) if created is not None else None,
         ),
-        timestamp_ms=convert_timestamp_to_ms(timestamp) if timestamp else None,
+        timestamp_ms=convert_timestamp_to_ms(timestamp) if timestamp is not None else None,
     )
 
 
-def make_gauge_metric(label_names: Sequence[str], label_values: Sequence[str], value: float) -> PBMetric:
+def make_gauge_metric(label_names: Sequence[str],
+    label_values: Sequence[str],
+    value: float,
+) -> PBMetric:
     return PBMetric(
         label=make_label_pairs(label_names, label_values),
         gauge=PBGauge(value=value),
     )
 
 
-def make_summary_metric(label_names: Sequence[str], label_values: Sequence[str], sample_count: float, sample_sum: float, created: Optional[float]) -> PBMetric:
+def make_summary_metric(
+    label_names: Sequence[str],
+    label_values: Sequence[str],
+    sample_count: int,
+    sample_sum: float,
+    timestamp: Optional[Union[Timestamp, float]],
+) -> PBMetric:
     return PBMetric(
         label=make_label_pairs(label_names, label_values),
         counter=PBSummary(
             sample_count=sample_count,
             sample_sum=sample_sum,
             # quantile=...,  # python doesn't expose quantiles for summaries
-            created_timestamp=datetime.datetime.fromtimestamp(created),
+            # created_timestamp=...  # apparently we don't expose that either?
         ),
+        timestamp_ms=convert_timestamp_to_ms(timestamp) if timestamp is not None else None,
     )
 
 
-def make_bucket(cumulative_count: float, upper_bound: float, exemplar: Optional[Exemplar]) -> PBBucket:
-    return PBBucket(cumulative_count_float=cumulative_count, upper_bound=upper_bound, exemplar=convert_exemplar(exemplar))
+def make_bucket(
+    cumulative_count: float,
+    upper_bound: float | str,
+    exemplar: Optional[Exemplar],
+) -> PBBucket:
+    return PBBucket(
+        cumulative_count_float=cumulative_count,
+        upper_bound=float(upper_bound),
+        exemplar=convert_exemplar(exemplar) if exemplar is not None else None,
+    )
 
 
-def make_histogram_metric(label_names: Sequence[str], label_values: Sequence[str], buckets: Sequence[PBBucket], sample_sum: Optional[float], created: Optional[float]) -> PBMetric:
+def make_histogram_metric(
+    label_names: Sequence[str],
+    label_values: Sequence[str],
+    buckets: Sequence[PBBucket],
+    sample_sum: Optional[float],
+    timestamp: Optional[Union[Timestamp, float]],
+) -> PBMetric:
     return PBMetric(
         label=make_label_pairs(label_names, label_values),
         histogram=PBHistogram(
@@ -151,18 +187,26 @@ def make_histogram_metric(label_names: Sequence[str], label_values: Sequence[str
             sample_count_float=buckets[-1].cumulative_count_float if buckets[0].upper_bound >= 0 else None,
             sample_sum=sample_sum if buckets[0].upper_bound >= 0 else None,
             bucket=buckets,
-            created_timestamp=datetime.datetime.fromtimestamp(created),
+            # created_timestamp=...  # apparently we don't expose that either?s
         ),
+        timestamp_ms=convert_timestamp_to_ms(timestamp) if timestamp is not None else None,
     )
 
 
-def make_ghistogram_metric(label_names: Sequence[str], label_values: Sequence[str], buckets: Sequence[PBBucket], sample_sum: Optional[float], created: Optional[float]) -> PBMetric:
+def make_ghistogram_metric(
+    label_names: Sequence[str],
+    label_values: Sequence[str],
+    buckets: Sequence[PBBucket],
+    sample_sum: Optional[float],
+    timestamp: Optional[Union[Timestamp, float]],
+) -> PBMetric:
     return PBMetric(
         label=make_label_pairs(label_names, label_values),
         histogram=PBHistogram(
             sample_count_float=buckets[-1].cumulative_count_float,
             sample_sum=sample_sum,
             bucket=buckets,
-            created_timestamp=datetime.datetime.fromtimestamp(created),
+            # created_timestamp=...  # apparently we don't expose that either?
         ),
+        timestamp_ms=convert_timestamp_to_ms(timestamp) if timestamp is not None else None,
     )

@@ -136,7 +136,7 @@ class CollectorRegistry(Collector):
         if labels is None:
             labels = {}
         for metric in self.collect():
-            for s in metric.samples:
+            for s in metric.pb_mf.metric:
                 if s.name == name and s.labels == labels:
                     return s.value
         return None

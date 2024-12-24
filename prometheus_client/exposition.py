@@ -19,6 +19,7 @@ from wsgiref.simple_server import make_server, WSGIRequestHandler, WSGIServer
 
 from .openmetrics import exposition as openmetrics
 from .prompb import exposition as prompb
+from .prompb.metrics_pb2 import MetricType as PBMetricType
 from .registry import CollectorRegistry, REGISTRY
 from .utils import floatToGoString
 from .validation import _is_valid_legacy_metric_name
@@ -273,31 +274,31 @@ def generate_latest(registry: CollectorRegistry = REGISTRY) -> bytes:
     output = []
     for metric in registry.collect():
         try:
-            mname = metric.name
-            mtype = metric.type
+            mname = metric.pb_mf.name
+            mtype = ""
             # Munging from OpenMetrics into Prometheus format.
-            if mtype == 'counter':
+            if metric.pb_mf.type == PBMetricType.COUNTER:
                 mname = mname + '_total'
-            elif mtype == 'info':
-                mname = mname + '_info'
-                mtype = 'gauge'
-            elif mtype == 'stateset':
-                mtype = 'gauge'
-            elif mtype == 'gaugehistogram':
+            # elif metric.pb_mf.type == 'info':
+            #     mname = mname + '_info'
+            #     mtype = 'gauge'
+            # elif metric.pb_mf.type == 'stateset':
+            #     mtype = 'gauge'
+            elif metric.pb_mf.type == PBMetricType.GAUGE_HISTOGRAM:
                 # A gauge histogram is really a gauge,
                 # but this captures the structure better.
                 mtype = 'histogram'
-            elif mtype == 'unknown':
+            elif metric.pb_mf.type == PBMetricType.UNTYPED:
                 mtype = 'untyped'
 
             output.append('# HELP {} {}\n'.format(
-                openmetrics.escape_metric_name(mname), metric.documentation.replace('\\', r'\\').replace('\n', r'\n')))
+                openmetrics.escape_metric_name(mname), metric.pb_mf.help.replace('\\', r'\\').replace('\n', r'\n')))
             output.append(f'# TYPE {openmetrics.escape_metric_name(mname)} {mtype}\n')
 
             om_samples: Dict[str, List[str]] = {}
-            for s in metric.samples:
+            for s in metric.pb_mf.metric:
                 for suffix in ['_created', '_gsum', '_gcount']:
-                    if s.name == metric.name + suffix:
+                    if s.name == metric.pb_mf.name + suffix:
                         # OpenMetrics specific sample, put in a gauge at the end.
                         om_samples.setdefault(suffix, []).append(sample_line(s))
                         break
@@ -308,9 +309,9 @@ def generate_latest(registry: CollectorRegistry = REGISTRY) -> bytes:
             raise
 
         for suffix, lines in sorted(om_samples.items()):
-            output.append('# HELP {} {}\n'.format(openmetrics.escape_metric_name(metric.name + suffix),
-                                                  metric.documentation.replace('\\', r'\\').replace('\n', r'\n')))
-            output.append(f'# TYPE {openmetrics.escape_metric_name(metric.name + suffix)} gauge\n')
+            output.append('# HELP {} {}\n'.format(openmetrics.escape_metric_name(metric.pb_mf.name + suffix),
+                                                  metric.pb_mf.help.replace('\\', r'\\').replace('\n', r'\n')))
+            output.append(f'# TYPE {openmetrics.escape_metric_name(metric.pb_mf.name + suffix)} gauge\n')
             output.extend(lines)
     return ''.join(output).encode('utf-8')
 
