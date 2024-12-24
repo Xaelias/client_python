@@ -1,44 +1,13 @@
-# import base64
-# from contextlib import closing
-# import gzip
-# from http.server import BaseHTTPRequestHandler
-# import os
-# import socket
-# from socketserver import ThreadingMixIn
-# import ssl
-# import sys
-# import threading
-# from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
-# from urllib.error import HTTPError
-# from urllib.parse import parse_qs, quote_plus, urlparse
-# from urllib.request import (
-#     BaseHandler, build_opener, HTTPHandler, HTTPRedirectHandler, HTTPSHandler,
-#     Request,
-# )
-# from wsgiref.simple_server import make_server, WSGIRequestHandler, WSGIServer
-
-# from .openmetrics import exposition as openmetrics
 import datetime
 
 from google.protobuf.internal.encoder import _VarintBytes
 
-from ..metrics_core import CounterMetricFamily, GaugeMetricFamily
-from ..registry import REGISTRY, CollectorRegistry
 from .metrics_pb2 import (
-    Bucket,
-    Counter,
-    Exemplar,
-    Gauge,
-    Histogram,
-    LabelPair,
-    Metric,
-    MetricFamily,
-    MetricType,
-    Summary,
+    Bucket, Counter, Exemplar, Gauge, Histogram, LabelPair, Metric,
+    MetricFamily, MetricType, Summary,
 )
-
-# from .utils import floatToGoString
-# from .validation import _is_valid_legacy_metric_name
+from ..metrics_core import CounterMetricFamily, GaugeMetricFamily
+from ..registry import CollectorRegistry, REGISTRY
 
 CONTENT_TYPE_LATEST = "application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited; escaping=values"
 
@@ -218,17 +187,16 @@ def generate_latest(registry: CollectorRegistry = REGISTRY) -> bytes:
     output = []
     for metric in registry.collect():
         try:
-            match metric.type:
-                case "counter":
-                    output.append(generate_counter_mf(metric))
-                case "gauge":
-                    output.append(generate_gauge_mf(metric))
-                case "summary":
-                    output.append(generate_summary_mf(metric))
-                case "histogram":
-                    output.append(generate_histogram_mf(metric))
-                case _:
-                    raise ValueError(f"Unknown metric type {metric.type}")
+            if metric.type == "counter":
+                output.append(generate_counter_mf(metric))
+            elif metric.type == "gauge":
+                output.append(generate_gauge_mf(metric))
+            elif metric.type == "summary":
+                output.append(generate_summary_mf(metric))
+            elif metric.type == "histogram":
+                output.append(generate_histogram_mf(metric))
+            else:
+                raise ValueError(f"Unknown metric type {metric.type}")
         except Exception as exception:
             exception.args = (exception.args or ("",)) + (metric,)
             raise

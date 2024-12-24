@@ -321,7 +321,7 @@ def choose_encoder(accept_header: str) -> Tuple[Callable[[CollectorRegistry], by
         if accepted.split(';')[0].strip() == 'application/openmetrics-text':
             return (openmetrics.generate_latest,
                     openmetrics.CONTENT_TYPE_LATEST)
-        elif accepted.split(';')[0].strip() == 'application/vnd.google.protobuf':
+        elif accepted.split(";")[0].strip() == "application/vnd.google.protobuf":
             return (prompb.generate_latest, prompb.CONTENT_TYPE_LATEST)
     return generate_latest, CONTENT_TYPE_LATEST
 
