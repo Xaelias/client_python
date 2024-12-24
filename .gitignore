@@ -8,4 +8,4 @@ dist
 .tox
 .*cache
 htmlcov
-prompb/*py
+*_pb2.py

@@ -21,6 +21,7 @@ setup(
         'prometheus_client',
         'prometheus_client.bridge',
         'prometheus_client.openmetrics',
+        'prometheus_client.prompb',
         'prometheus_client.twisted',
     ],
     package_data={

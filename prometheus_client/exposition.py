@@ -18,6 +18,7 @@ from urllib.request import (
 from wsgiref.simple_server import make_server, WSGIRequestHandler, WSGIServer
 
 from .openmetrics import exposition as openmetrics
+from .prompb import exposition as prompb
 from .registry import CollectorRegistry, REGISTRY
 from .utils import floatToGoString
 from .validation import _is_valid_legacy_metric_name
@@ -320,6 +321,8 @@ def choose_encoder(accept_header: str) -> Tuple[Callable[[CollectorRegistry], by
         if accepted.split(';')[0].strip() == 'application/openmetrics-text':
             return (openmetrics.generate_latest,
                     openmetrics.CONTENT_TYPE_LATEST)
+        elif accepted.split(';')[0].strip() == 'application/vnd.google.protobuf':
+            return (prompb.generate_latest, prompb.CONTENT_TYPE_LATEST)
     return generate_latest, CONTENT_TYPE_LATEST
 
 
