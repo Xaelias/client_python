@@ -61,13 +61,13 @@ def parse_labels(labels_string: str, openmetrics: bool = False) -> Dict[str, str
         while sub_labels:
             # The label name is before the equal, or if there's no equal, that's the
             # metric name.
-
+            
             term, sub_labels = _next_term(sub_labels, openmetrics)
             if not term:
                 if openmetrics:
                     raise ValueError("empty term in line: " + labels_string)
                 continue
-
+            
             quoted_name = False
             operator_pos = _next_unquoted_char(term, '=')
             if operator_pos == -1:
@@ -77,11 +77,11 @@ def parse_labels(labels_string: str, openmetrics: bool = False) -> Dict[str, str
                 value_start = _next_unquoted_char(term, '=')
                 label_name, quoted_name = _unquote_unescape(term[:value_start])
                 term = term[value_start + 1:]
-
+                
             if not quoted_name and not _is_valid_legacy_metric_name(label_name):
                 raise ValueError("unquoted UTF-8 metric name")
-
-            # Check for missing quotes
+                
+            # Check for missing quotes 
             term = term.strip()
             if not term or term[0] != '"':
                 raise ValueError
@@ -110,17 +110,17 @@ def parse_labels(labels_string: str, openmetrics: bool = False) -> Dict[str, str
         return labels
     except ValueError:
         raise ValueError("Invalid labels: " + labels_string)
-
+    
 
 def _next_term(text: str, openmetrics: bool) -> Tuple[str, str]:
     """Extract the next comma-separated label term from the text.
-
-    Returns the stripped term and the stripped remainder of the string,
+    
+    Returns the stripped term and the stripped remainder of the string, 
     including the comma.
-
+    
     Raises ValueError if the term is empty and we're in openmetrics mode.
     """
-
+    
     # There may be a leading comma, which is fine here.
     if text[0] == ',':
         text = text[1:]
@@ -134,14 +134,14 @@ def _next_term(text: str, openmetrics: bool) -> Tuple[str, str]:
     term = text[:splitpos]
     if not term and openmetrics:
         raise ValueError("empty term:", term)
-
+    
     sublabels = text[splitpos:]
     return term.strip(), sublabels.strip()
 
 
 def _next_unquoted_char(text: str, chs: str, startidx: int = 0) -> int:
     """Return position of next unquoted character in tuple, or -1 if not found.
-
+    
     It is always assumed that the first character being checked is not already
     inside quotes.
     """
@@ -168,7 +168,7 @@ def _last_unquoted_char(text: str, chs: str) -> int:
     while i > 0:
         if text[i] == '"' and not _is_character_escaped(text, i):
             in_quotes = not in_quotes
-
+            
         if not in_quotes:
             if text[i] in chs:
                 return i
@@ -236,7 +236,7 @@ def _parse_value(value):
         return int(value)
     except ValueError:
         return float(value)
-
+    
 
 def _parse_sample(text):
     separator = " # "
@@ -296,7 +296,7 @@ def text_fd_to_metric_families(fd: TextIO) -> Iterable[Metric]:
                     new_samples.append(Sample(s[0] + '_total', *s[1:]))
                     samples = new_samples
         metric = Metric(name, documentation, typ)
-        # metric.samples = samples # alesieur
+        metric.samples = samples
         return metric
 
     for line in fd:

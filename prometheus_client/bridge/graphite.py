@@ -68,7 +68,7 @@ class GraphiteBridge:
             prefixstr = prefix + '.'
 
         for metric in self._registry.collect():
-            for s in metric.pb_mf.metric:
+            for s in metric.samples:
                 if s.labels:
                     if self._tags:
                         sep = ';'
