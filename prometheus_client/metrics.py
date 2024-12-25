@@ -11,8 +11,20 @@ import warnings
 from . import values  # retain this import style for testability
 from .context_managers import ExceptionCounter, InprogressTracker, Timer
 from .metrics_core import Metric
+# from .prompb.metrics_pb2 import Bucket as PBBucket
+# from .prompb.metrics_pb2 import Counter as PBCounter
+# from .prompb.metrics_pb2 import Exemplar as Exemplar
+# from .prompb.metrics_pb2 import Gauge as PBGauge
+# from .prompb.metrics_pb2 import Histogram as PBHistogram
+from .prompb.metrics_pb2 import LabelPair as PBLabelPair
+from .prompb.metrics_pb2 import Metric as PBMetric
+# from .prompb.metrics_pb2 import MetricFamily as PBMetricFamily
+# from .prompb.metrics_pb2 import MetricType as PBMetricType
+# from .prompb.metrics_pb2 import Summary as PBSummary
+# from .prompb.metrics_pb2 import Untyped as PBUntyped
+from .prompb.utils import make_untyped_metric, make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric
 from .registry import Collector, CollectorRegistry, REGISTRY
-from .samples import Exemplar, Sample
+from .samples import Exemplar
 from .utils import floatToGoString, INF
 from .validation import (
     _validate_exemplar, _validate_labelnames, _validate_metric_name,
@@ -88,8 +100,7 @@ class MetricWrapperBase(Collector):
 
     def collect(self) -> Iterable[Metric]:
         metric = self._get_metric()
-        for suffix, labels, value, timestamp, exemplar, native_histogram_value in self._samples():
-            metric.add_sample(self._name + suffix, labels, value, timestamp, exemplar, native_histogram_value)
+        metric.pb_mf.metric = self._samples()
         return [metric]
 
     def __str__(self) -> str:
@@ -189,7 +200,7 @@ class MetricWrapperBase(Collector):
     def remove(self, *labelvalues: Any) -> None:
         if 'prometheus_multiproc_dir' in os.environ or 'PROMETHEUS_MULTIPROC_DIR' in os.environ:
             warnings.warn(
-                "Removal of labels has not been implemented in  multi-process mode yet.",
+                "Removal of labels has not been implemented in multi-process mode yet.",
                 UserWarning)
 
         if not self._labelnames:
@@ -212,21 +223,23 @@ class MetricWrapperBase(Collector):
         with self._lock:
             self._metrics = {}
 
-    def _samples(self) -> Iterable[Sample]:
+    def _samples(self) -> Iterable[PBMetric]:
         if self._is_parent():
             return self._multi_samples()
         else:
             return self._child_samples()
 
-    def _multi_samples(self) -> Iterable[Sample]:
+    def _multi_samples(self) -> Iterable[PBMetric]:
         with self._lock:
             metrics = self._metrics.copy()
         for labels, metric in metrics.items():
-            series_labels = list(zip(self._labelnames, labels))
-            for suffix, sample_labels, value, timestamp, exemplar, native_histogram_value in metric._samples():
-                yield Sample(suffix, dict(series_labels + list(sample_labels.items())), value, timestamp, exemplar, native_histogram_value)
+            series_labels = [PBLabelPair(name, value) for name, value in zip(self._labelnames, labels)]
+            for pb_metric in metric._samples():
+                metric = PBMetric(label=series_labels)
+                metric.CopyFrom(pb_metric)
+                yield metric
 
-    def _child_samples(self) -> Iterable[Sample]:  # pragma: no cover
+    def _child_samples(self) -> Iterable[PBMetric]:  # pragma: no cover
         raise NotImplementedError('_child_samples() must be implemented by %r' % self)
 
     def _metric_init(self):  # pragma: no cover
@@ -269,7 +282,7 @@ class Counter(MetricWrapperBase):
         # Count only one type of exception
         with c.count_exceptions(ValueError):
             pass
-            
+
     You can also reset the counter to zero in case your logical "process" restarts
     without restarting the actual python process.
 
@@ -308,14 +321,16 @@ class Counter(MetricWrapperBase):
         self._raise_if_not_observable()
         return ExceptionCounter(self, exception)
 
-    def _child_samples(self) -> Iterable[Sample]:
-        sample = Sample('_total', {}, self._value.get(), None, self._value.get_exemplar())
-        if _use_created:
-            return (
-                sample,
-                Sample('_created', {}, self._created, None, None)
-            )
-        return (sample,)
+    def _child_samples(self) -> Iterable[PBMetric]:
+        return (
+            make_counter_metric(
+                label_names=(),
+                label_values=(),
+                value=self._value.get(),
+                exemplar=self._value.get_exemplar(),
+                created=self._created if _use_created else None,
+            ),
+        )
 
 
 class Gauge(MetricWrapperBase):
@@ -444,13 +459,13 @@ class Gauge(MetricWrapperBase):
 
         self._raise_if_not_observable()
 
-        def samples(_: Gauge) -> Iterable[Sample]:
-            return (Sample('', {}, float(f()), None, None),)
+        def samples(_: Gauge) -> Iterable[PBMetric]:
+            return (make_gauge_metric(label_names=(), label_values=(), value=float(f())))
 
         self._child_samples = types.MethodType(samples, self)  # type: ignore
 
-    def _child_samples(self) -> Iterable[Sample]:
-        return (Sample('', {}, self._value.get(), None, None),)
+    def _child_samples(self) -> Iterable[PBMetric]:
+        return (make_gauge_metric(label_names=(), label_values=(), value=self._value.get()))
 
 
 class Summary(MetricWrapperBase):
@@ -513,14 +528,14 @@ class Summary(MetricWrapperBase):
         """
         return Timer(self, 'observe')
 
-    def _child_samples(self) -> Iterable[Sample]:
-        samples = [
-            Sample('_count', {}, self._count.get(), None, None),
-            Sample('_sum', {}, self._sum.get(), None, None),
-        ]
-        if _use_created:
-            samples.append(Sample('_created', {}, self._created, None, None))
-        return tuple(samples)
+    def _child_samples(self) -> Iterable[PBMetric]:
+        return (
+            make_summary_metric(
+                sample_count=self._count.get(),
+                sample_sum=self._sum.get(),
+                created=self._created if _use_created else None,
+            ),
+        )
 
 
 class Histogram(MetricWrapperBase):
@@ -640,18 +655,43 @@ class Histogram(MetricWrapperBase):
         """
         return Timer(self, 'observe')
 
-    def _child_samples(self) -> Iterable[Sample]:
-        samples = []
+    def _child_samples(self) -> Iterable[PBMetric]:
+        # samples = []
+        # acc = 0.0
+        # for i, bound in enumerate(self._upper_bounds):
+        #     acc += self._buckets[i].get()
+        #     samples.append(Sample('_bucket', {'le': floatToGoString(bound)}, acc, None, self._buckets[i].get_exemplar()))
+        # samples.append(Sample('_count', {}, acc, None, None))
+        # if self._upper_bounds[0] >= 0:
+        #     samples.append(Sample('_sum', {}, self._sum.get(), None, None))
+        # if _use_created:
+        #     samples.append(Sample('_created', {}, self._created, None, None))
+        # return tuple(samples)
+
+        buckets = []
         acc = 0.0
         for i, bound in enumerate(self._upper_bounds):
             acc += self._buckets[i].get()
-            samples.append(Sample('_bucket', {'le': floatToGoString(bound)}, acc, None, self._buckets[i].get_exemplar()))
-        samples.append(Sample('_count', {}, acc, None, None))
-        if self._upper_bounds[0] >= 0:
-            samples.append(Sample('_sum', {}, self._sum.get(), None, None))
-        if _use_created:
-            samples.append(Sample('_created', {}, self._created, None, None))
-        return tuple(samples)
+            buckets.append((bound, acc))
+        # # samples.append(Sample('_count', {}, acc, None, None))
+        # # Don't include sum and thus count if there's negative buckets.
+        # sample_count = None
+        # sample_sum = None
+        # if self._upper_bounds[0] >= 0:
+        #     samples.append(Sample('_sum', {}, self._sum.get(), None, None))
+        # if _use_created:
+        #     samples.append(Sample('_created', {}, self._created, None, None))
+        return (
+            (
+                make_histogram_metric(
+                    label_names=(),
+                    label_values=(),
+                    buckets=buckets,
+                    sum_value=acc,
+                    created=self._created if _use_created else None,
+                )
+            ),
+        )
 
 
 class Info(MetricWrapperBase):
@@ -687,9 +727,9 @@ class Info(MetricWrapperBase):
         with self._lock:
             self._value = dict(val)
 
-    def _child_samples(self) -> Iterable[Sample]:
+    def _child_samples(self) -> Iterable[PBMetric]:
         with self._lock:
-            return (Sample('_info', self._value, 1.0, None, None),)
+            return (make_untyped_metric(label_names=(), label_values=(), value=self._value, timestamp=1.0),)
 
 
 class Enum(MetricWrapperBase):
@@ -744,10 +784,12 @@ class Enum(MetricWrapperBase):
         with self._lock:
             self._value = self._states.index(state)
 
-    def _child_samples(self) -> Iterable[Sample]:
+    def _child_samples(self) -> Iterable[PBMetric]:
         with self._lock:
             return [
-                Sample('', {self._name: s}, 1 if i == self._value else 0, None, None)
-                for i, s
-                in enumerate(self._states)
+                make_untyped_metric(
+                    label_names=(self._name,),
+                    label_values=(s,),
+                    value=1 if i == self._value else 0
+                ) for i, s in enumerate(self._states)
             ]

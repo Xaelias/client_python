@@ -1,4 +1,4 @@
-# from typing import Dict, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Dict, NamedTuple, Optional, Sequence, Tuple, Union
 
 
 class Timestamp:
@@ -53,15 +53,15 @@ class Timestamp:
 #     neg_deltas: Optional[Sequence[int]] = None
 
 
-# # Timestamp and exemplar are optional.
-# # Value can be an int or a float.
-# # Timestamp can be a float containing a unixtime in seconds,
-# # a Timestamp object, or None.
-# # Exemplar can be an Exemplar object, or None.
-# class Exemplar(NamedTuple):
-#     labels: Dict[str, str]
-#     value: float
-#     timestamp: Optional[Union[float, Timestamp]] = None
+# Timestamp and exemplar are optional.
+# Value can be an int or a float.
+# Timestamp can be a float containing a unixtime in seconds,
+# a Timestamp object, or None.
+# Exemplar can be an Exemplar object, or None.
+class Exemplar(NamedTuple):
+    labels: Dict[str, str]
+    value: float
+    timestamp: Optional[Union[float, Timestamp]] = None
 
 
 # class Sample(NamedTuple):
