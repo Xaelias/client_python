@@ -5,9 +5,10 @@ from .prompb.metrics_pb2 import Metric as PBMetric
 from .prompb.metrics_pb2 import MetricFamily as PBMetricFamily
 from .prompb.metrics_pb2 import MetricType as PBMetricType
 from .prompb.metrics_pb2 import Untyped as PBUntyped
+from .prompb.utils import convert_counter_to_sample, convert_gauge_to_sample, convert_histogram_to_sample, convert_summary_to_sample, convert_untyped_to_sample
 from .prompb.utils import convert_timestamp_to_timestampms
 from .prompb.utils import make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric, make_untyped_metric
-from .samples import Exemplar, Timestamp
+from .samples import Exemplar, Sample, Timestamp
 from .validation import _validate_metric_name
 
 METRIC_TYPES = (
@@ -25,14 +26,22 @@ class Metric:
     and SummaryMetricFamily instead.
     """
 
-    def __init__(self, name: str, documentation: str, typ: str, unit: str = ''):
+    def __init__(
+        self,
+        name: str,
+        documentation: str,
+        typ: str,
+        unit: str = '',
+    ):
         if unit and not name.endswith("_" + unit):
             name += "_" + unit
         _validate_metric_name(name)
 
         if typ == 'untyped':
             typ = 'unknown'
-        if typ not in METRIC_TYPES:
+        if typ == 'info':
+            name += '_info'
+        elif typ not in METRIC_TYPES:
             raise ValueError('Invalid metric type: ' + typ)
         self.type: str = typ
 
@@ -59,6 +68,24 @@ class Metric:
     @property
     def unit(self) -> str:
         return self.pb_mf.unit
+
+    @property
+    def samples(self) -> Sequence[Sample]:
+        if self.pb_mf.type == PBMetricType.COUNTER:
+            convert = convert_counter_to_sample
+        elif self.pb_mf.type == PBMetricType.GAUGE:
+            convert = convert_gauge_to_sample
+        elif self.pb_mf.type == PBMetricType.SUMMARY:
+            convert_summary_to_sample
+        elif self.pb_mf.type == PBMetricType.UNTYPED:
+            convert = convert_untyped_to_sample
+        elif self.pb_mf.type in (PBMetricType.HISTOGRAM, PBMetricType.GAUGE_HISTOGRAM):
+            convert = convert_histogram_to_sample
+
+        samples = []
+        for metric in self.pb_mf.metric:
+            samples.extend(convert(self.name, metric))
+        return samples
 
     # alesieur
     # def add_sample(self, name: str, labels: Dict[str, str], value: float, timestamp: Optional[Union[Timestamp, float]] = None, exemplar: Optional[Exemplar] = None, native_histogram: Optional[NativeHistogram] = None) -> None:
@@ -232,6 +259,10 @@ class GaugeMetricFamily(Metric):
             )
         )
 
+    @property
+    def samples(self) -> Sequence[Sample]:
+        return [convert_gauge_to_sample(self.name, metric) for metric in self.pb_mf.metric]
+
 
 class SummaryMetricFamily(Metric):
     """A single summary and its samples.
@@ -327,6 +358,7 @@ class HistogramMetricFamily(Metric):
               The buckets must be sorted, and +Inf present.
           sum_value: The sum value of the metric.
         """
+        # alesieur: need to double check if bucket can still have exemplars or not
         self.pb_mf.metric.append(
             make_histogram_metric(
                 label_names=self._labelnames,
