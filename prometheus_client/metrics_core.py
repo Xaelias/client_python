@@ -1,6 +1,18 @@
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, Optional, Sequence, Tuple, Union
 
-from .samples import Exemplar, NativeHistogram, Sample, Timestamp
+from .prompb.metrics_pb2 import Bucket as PBBucket
+from .prompb.metrics_pb2 import Counter as PBCounter
+from .prompb.metrics_pb2 import Exemplar as Exemplar
+from .prompb.metrics_pb2 import Gauge as PBGauge
+from .prompb.metrics_pb2 import Histogram as PBHistogram
+from .prompb.metrics_pb2 import LabelPair as PBLabelPair
+from .prompb.metrics_pb2 import Metric as PBMetric
+from .prompb.metrics_pb2 import MetricFamily as PBMetricFamily
+from .prompb.metrics_pb2 import MetricType as PBMetricType
+from .prompb.metrics_pb2 import Summary as PBSummary
+from .prompb.metrics_pb2 import Untyped as PBUntyped
+from .prompb.utils import convert_timestamp_to_pbtimestamp, convert_timestamp_to_timestampms
+from .samples import NativeHistogram, Timestamp  # alesieur
 from .validation import _validate_metric_name
 
 METRIC_TYPES = (
@@ -22,45 +34,72 @@ class Metric:
         if unit and not name.endswith("_" + unit):
             name += "_" + unit
         _validate_metric_name(name)
-        self.name: str = name
-        self.documentation: str = documentation
-        self.unit: str = unit
+
         if typ == 'untyped':
             typ = 'unknown'
         if typ not in METRIC_TYPES:
             raise ValueError('Invalid metric type: ' + typ)
         self.type: str = typ
-        self.samples: List[Sample] = []
+
+        pb_typ = getattr(PBMetricType, typ, PBMetricType.UNTYPED)
+        if pb_typ == 'gaugehistogram':
+            pb_typ = PBMetricType.GAUGE_HISTOGRAM
+
+        self.pb_mf = PBMetricFamily(
+            name=name,
+            help=documentation,
+            type=pb_typ,
+            metric=[],
+            unit=unit,
+        )
+
+        @property
+        def name(self) -> str:
+            return self.pb_mf.name
+
+        @property
+        def documentation(self) -> str:
+            return self.pb_mf.help
+
+        @property
+        def unit(self) -> str:
+            return self.pb_mf.unit
 
     def add_sample(self, name: str, labels: Dict[str, str], value: float, timestamp: Optional[Union[Timestamp, float]] = None, exemplar: Optional[Exemplar] = None, native_histogram: Optional[NativeHistogram] = None) -> None:
         """Add a sample to the metric.
 
         Internal-only, do not use."""
-        self.samples.append(Sample(name, labels, value, timestamp, exemplar, native_histogram))
+        # alesieur: what about exemplar and native_histogram? :awkward:
+        # Counter and Histograms are the only types w/ exemplars under the hood
+        self.pb_mf.metric.append(
+            PBMetric(
+                label=[PBLabelPair(name=k, value=v) for k, v in labels.items()],
+                untyped=PBUntyped(
+                    value=value,
+                ),
+                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            ),
+        )
 
     def __eq__(self, other: object) -> bool:
-        return (isinstance(other, Metric)
-                and self.name == other.name
-                and self.documentation == other.documentation
-                and self.type == other.type
-                and self.unit == other.unit
-                and self.samples == other.samples)
+        return isinstance(other, Metric) and self.type == other.type and self.pb_mf == other.pb_mf
 
     def __repr__(self) -> str:
-        return "Metric({}, {}, {}, {}, {})".format(
-            self.name,
-            self.documentation,
-            self.type,
-            self.unit,
-            self.samples,
-        )
+        return "TODO: alesieur"  # alesieur
+        # return "Metric({}, {}, {}, {}, {})".format(
+        #     self.name,
+        #     self.documentation,
+        #     self.type,
+        #     self.unit,
+        #     self.samples,
+        # )
 
     def _restricted_metric(self, names):
         """Build a snapshot of a metric with samples restricted to a given set of names."""
-        samples = [s for s in self.samples if s[0] in names]
-        if samples:
-            m = Metric(self.name, self.documentation, self.type)
-            m.samples = samples
+        metrics = [m for m in self.pb_mf.metric if m.name in names]
+        if metrics:
+            m = Metric(self.name, self.documentation, self.type, self.unit)
+            m.pb_mf.metric.extend(metrics)
             return m
         return None
 
@@ -92,7 +131,13 @@ class UnknownMetricFamily(Metric):
         labels: A list of label values
         value: The value of the metric.
         """
-        self.samples.append(Sample(self.name, dict(zip(self._labelnames, labels)), value, timestamp))
+        self.pb_mf.metric.append(
+            PBMetric(
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames, labels)],
+                untyped=PBUntyped(value=value),
+                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            )
+        )
 
 
 # For backward compatibility.
@@ -110,7 +155,7 @@ class CounterMetricFamily(Metric):
                  documentation: str,
                  value: Optional[float] = None,
                  labels: Optional[Sequence[str]] = None,
-                 created: Optional[float] = None,
+                 created: Optional[float] = None,  # alesieur
                  unit: str = '',
                  exemplar: Optional[Exemplar] = None,
                  ):
@@ -140,9 +185,17 @@ class CounterMetricFamily(Metric):
           value: The value of the metric
           created: Optional unix timestamp the child was created at.
         """
-        self.samples.append(Sample(self.name + '_total', dict(zip(self._labelnames, labels)), value, timestamp, exemplar))
-        if created is not None:
-            self.samples.append(Sample(self.name + '_created', dict(zip(self._labelnames, labels)), created, timestamp))
+        self.pb_mf.metric.append(
+            PBMetric(
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames, labels)],
+                counter=PBCounter(
+                    value=value,
+                    exemplar=exemplar,
+                    created_timestamp=convert_timestamp_to_pbtimestamp(created),
+                ),
+                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            )
+        )
 
 
 class GaugeMetricFamily(Metric):
@@ -174,7 +227,13 @@ class GaugeMetricFamily(Metric):
           labels: A list of label values
           value: A float
         """
-        self.samples.append(Sample(self.name, dict(zip(self._labelnames, labels)), value, timestamp))
+        self.pb_mf.metric.append(
+            PBMetric(
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames, labels)],
+                gauge=PBGauge(value=value),
+                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            )
+        )
 
 
 class SummaryMetricFamily(Metric):
@@ -207,8 +266,8 @@ class SummaryMetricFamily(Metric):
                    labels: Sequence[str],
                    count_value: int,
                    sum_value: float,
-                   timestamp:
-                   Optional[Union[float, Timestamp]] = None
+                   timestamp: Optional[Union[float, Timestamp]] = None,
+                   created: Optional[float] = None,
                    ) -> None:
         """Add a metric to the metric family.
 
@@ -217,8 +276,18 @@ class SummaryMetricFamily(Metric):
           count_value: The count value of the metric.
           sum_value: The sum value of the metric.
         """
-        self.samples.append(Sample(self.name + '_count', dict(zip(self._labelnames, labels)), count_value, timestamp))
-        self.samples.append(Sample(self.name + '_sum', dict(zip(self._labelnames, labels)), sum_value, timestamp))
+        self.pb_mf.metric.append(
+            PBMetric(
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames, labels)],
+                summary=PBSummary(
+                    sample_count=count_value,
+                    sample_sum=sum_value,
+                    quantile=None,  # not exposed in python
+                    created_timestamp=convert_timestamp_to_pbtimestamp(created),
+                ),
+                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            )
+        )
 
 
 class HistogramMetricFamily(Metric):
@@ -250,7 +319,9 @@ class HistogramMetricFamily(Metric):
                    labels: Sequence[str],
                    buckets: Sequence[Union[Tuple[str, float], Tuple[str, float, Exemplar]]],
                    sum_value: Optional[float],
-                   timestamp: Optional[Union[Timestamp, float]] = None) -> None:
+                   timestamp: Optional[Union[Timestamp, float]] = None,
+                   created: Optional[float] = None,
+                   ) -> None:
         """Add a metric to the metric family.
 
         Args:
@@ -260,26 +331,33 @@ class HistogramMetricFamily(Metric):
               or a triple of bucket name, value, and exemplar.
               The buckets must be sorted, and +Inf present.
           sum_value: The sum value of the metric.
+
+          alesieur: proto spec says no exemplars for regular histograms
         """
-        for b in buckets:
-            bucket, value = b[:2]
-            exemplar = None
-            if len(b) == 3:
-                exemplar = b[2]  # type: ignore
-            self.samples.append(Sample(
-                self.name + '_bucket',
-                dict(list(zip(self._labelnames, labels)) + [('le', bucket)]),
-                value,
-                timestamp,
-                exemplar,
-            ))
+        pb_buckets = []
+        for bucket in buckets:
+            bound, count = bucket[:2]
+            pb_buckets.append(PBBucket(cumulative_count_float=count, upper_bound=float(bound)))
+
         # Don't include sum and thus count if there's negative buckets.
+        sample_count = None
+        sample_sum = None
         if float(buckets[0][0]) >= 0 and sum_value is not None:
-            # +Inf is last and provides the count value.
-            self.samples.append(
-                Sample(self.name + '_count', dict(zip(self._labelnames, labels)), buckets[-1][1], timestamp))
-            self.samples.append(
-                Sample(self.name + '_sum', dict(zip(self._labelnames, labels)), sum_value, timestamp))
+            sample_count = buckets[-1][1]
+            sample_sum = sum_value
+
+        self.pb_mf.metric.append(
+            PBMetric(
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames, labels)],
+                histogram=PBHistogram(
+                    sample_count_float=sample_count,
+                    sample_sum=sample_sum,
+                    bucket=pb_buckets,
+                    created_timestamp=convert_timestamp_to_pbtimestamp(created),
+                ),
+                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            )
+        )
 
 
 class GaugeHistogramMetricFamily(Metric):
@@ -310,6 +388,7 @@ class GaugeHistogramMetricFamily(Metric):
                    buckets: Sequence[Tuple[str, float]],
                    gsum_value: Optional[float],
                    timestamp: Optional[Union[float, Timestamp]] = None,
+                   created: Optional[float] = None,
                    ) -> None:
         """Add a metric to the metric family.
 
@@ -319,17 +398,26 @@ class GaugeHistogramMetricFamily(Metric):
               The buckets must be sorted, and +Inf present.
           gsum_value: The sum value of the metric.
         """
-        for bucket, value in buckets:
-            self.samples.append(Sample(
-                self.name + '_bucket',
-                dict(list(zip(self._labelnames, labels)) + [('le', bucket)]),
-                value, timestamp))
-        # +Inf is last and provides the count value.
-        self.samples.extend([
-            Sample(self.name + '_gcount', dict(zip(self._labelnames, labels)), buckets[-1][1], timestamp),
-            # TODO: Handle None gsum_value correctly. Currently a None will fail exposition but is allowed here.
-            Sample(self.name + '_gsum', dict(zip(self._labelnames, labels)), gsum_value, timestamp),  # type: ignore
-        ])
+        pb_buckets = []
+        for bucket in buckets:
+            bound, count = bucket[:2]
+            pb_buckets.append(PBBucket(cumulative_count_float=count, upper_bound=float(bound)))
+
+        sample_count = buckets[-1][1]
+        sample_sum = gsum_value
+
+        self.pb_mf.metric.append(
+            PBMetric(
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames, labels)],
+                histogram=PBHistogram(
+                    sample_count_float=sample_count,
+                    sample_sum=sample_sum,
+                    bucket=pb_buckets,
+                    created_timestamp=convert_timestamp_to_pbtimestamp(created),
+                ),
+                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            )
+        )
 
 
 class InfoMetricFamily(Metric):
@@ -364,12 +452,13 @@ class InfoMetricFamily(Metric):
           labels: A list of label values
           value: A dict of labels
         """
-        self.samples.append(Sample(
-            self.name + '_info',
-            dict(dict(zip(self._labelnames, labels)), **value),
-            1,
-            timestamp,
-        ))
+        self.pb_mf.metric.append(
+            PBMetric(
+                label=[PBLabelPair(name=k, value=v) for k, v in labels.items()],
+                untyped=PBUntyped(value=1),
+                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            )
+        )
 
 
 class StateSetMetricFamily(Metric):
@@ -406,10 +495,10 @@ class StateSetMetricFamily(Metric):
         """
         labels = tuple(labels)
         for state, enabled in sorted(value.items()):
-            v = (1 if enabled else 0)
-            self.samples.append(Sample(
-                self.name,
-                dict(zip(self._labelnames + (self.name,), labels + (state,))),
-                v,
-                timestamp,
-            ))
+            self.pb_mf.metric.append(
+                PBMetric(
+                    label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames + (self.name,), labels + (state,))],
+                    untyped=PBUntyped(value=1 if enabled else 0),
+                    timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+                )
+            )
