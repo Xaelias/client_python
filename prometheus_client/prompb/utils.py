@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Optional, Sequence, Tuple, Union
 
-from .prompb.metrics_pb2 import (
+from google.protobuf.timestamp_pb2 import Timestamp as PBTimestamp
+
+from .metrics_pb2 import (
     Bucket,
     Counter,
     Exemplar,
@@ -12,13 +14,13 @@ from .prompb.metrics_pb2 import (
     Summary,
     Untyped,
 )
-from .samples import Exemplar as ExemplarTuple
-from .samples import Timestamp
+from ..samples import Exemplar as ExemplarTuple
+from ..samples import Timestamp
 
 
-def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float]]) -> int:
+def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float]]) -> Optional[int]:
     if isinstance(timestamp, Timestamp):
-        return float(timestamp) // 1_000
+        return int(float(timestamp) // 1_000)
     elif isinstance(timestamp, float):
         return int(timestamp * 1_000)
     elif timestamp is None:
@@ -26,22 +28,28 @@ def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float]
     raise ValueError(f"Invalid type for timestamp: {type(timestamp)}")
 
 
-def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, float]]) -> datetime:
+def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, float]]) -> Optional[PBTimestamp]:
     if isinstance(timestamp, Timestamp):
-        return datetime.fromtimestamp(float(timestamp))
+        ts = PBTimestamp()
+        return ts.FromDatetime(datetime.fromtimestamp(float(timestamp)))
     elif isinstance(timestamp, float):
-        return datetime.fromtimestamp(timestamp)
+        ts = PBTimestamp()
+        return ts.FromDatetime(datetime.fromtimestamp(timestamp))
     elif timestamp is None:
         return None
     raise ValueError(f"Invalid type for timestamp: {type(timestamp)}")
 
 
-def convert_exemplar_to_pbexemplar(exemplar: ExemplarTuple) -> Exemplar:
-    return Exemplar(
-        label=[LabelPair(name=name, value=value) for name, value in exemplar.labels.items()],
-        value=exemplar.value,
-        timestamp=convert_timestamp_to_pbtimestamp(exemplar.timestamp)
-    )
+def convert_exemplar_to_pbexemplar(exemplar: Optional[ExemplarTuple]) -> Optional[Exemplar]:
+    if isinstance(exemplar, ExemplarTuple):
+        return Exemplar(
+            label=[LabelPair(name=name, value=value) for name, value in exemplar.labels.items()],
+            value=exemplar.value,
+            timestamp=convert_timestamp_to_pbtimestamp(exemplar.timestamp)
+        )
+    elif exemplar is None:
+        return None
+    raise ValueError(f"Invalid type for exemplar: {type(exemplar)}")
 
 
 def make_untyped_metric(
@@ -122,7 +130,7 @@ def make_histogram_metric(
 ) -> Metric:
     pb_buckets = []
     for bucket in buckets:
-        bound, count = bucket[:2]
+        bound, count = bucket
         pb_buckets.append(Bucket(cumulative_count_float=count, upper_bound=float(bound)))
 
     # Don't include sum and thus count if there's negative buckets.

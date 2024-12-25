@@ -1,6 +1,5 @@
 from typing import Dict, Optional, Sequence, Tuple, Union
 
-from .prompb.metrics_pb2 import Exemplar as Exemplar
 from .prompb.metrics_pb2 import LabelPair as PBLabelPair
 from .prompb.metrics_pb2 import Metric as PBMetric
 from .prompb.metrics_pb2 import MetricFamily as PBMetricFamily
@@ -8,7 +7,7 @@ from .prompb.metrics_pb2 import MetricType as PBMetricType
 from .prompb.metrics_pb2 import Untyped as PBUntyped
 from .prompb.utils import convert_timestamp_to_timestampms
 from .prompb.utils import make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric, make_untyped_metric
-from .samples import Timestamp
+from .samples import Exemplar, Timestamp
 from .validation import _validate_metric_name
 
 METRIC_TYPES = (
@@ -61,6 +60,7 @@ class Metric:
     def unit(self) -> str:
         return self.pb_mf.unit
 
+    # alesieur
     # def add_sample(self, name: str, labels: Dict[str, str], value: float, timestamp: Optional[Union[Timestamp, float]] = None, exemplar: Optional[Exemplar] = None, native_histogram: Optional[NativeHistogram] = None) -> None:
     #     """Add a sample to the metric.
 
@@ -76,11 +76,6 @@ class Metric:
     #             timestamp_ms=convert_timestamp_to_timestampms(timestamp),
     #         ),
     #     )
-    def add_metric(self, metric: PBMetric):
-        self.pb_mf.metric.append(metric)
-
-    def extend_metric(self, metrics: Sequence[PBMetric]):
-        self.pb_mv.metric.extend(metrics)
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Metric) and self.type == other.type and self.pb_mf == other.pb_mf
@@ -331,14 +326,12 @@ class HistogramMetricFamily(Metric):
               or a triple of bucket name, value, and exemplar.
               The buckets must be sorted, and +Inf present.
           sum_value: The sum value of the metric.
-
-          alesieur: proto spec says no exemplars for regular histograms
         """
         self.pb_mf.metric.append(
             make_histogram_metric(
                 label_names=self._labelnames,
                 label_values=labels,
-                buckets=buckets,
+                buckets=[bucket[:2] for bucket in buckets],  # no exemplars in regular histograms
                 sum_value=sum_value,
                 timestamp=timestamp,
                 created=created,
@@ -431,7 +424,7 @@ class InfoMetricFamily(Metric):
         """
         self.pb_mf.metric.append(
             PBMetric(
-                label=[PBLabelPair(name=k, value=v) for k, v in labels.items()],
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames, labels)],
                 untyped=PBUntyped(value=1),
                 timestamp_ms=convert_timestamp_to_timestampms(timestamp),
             )
