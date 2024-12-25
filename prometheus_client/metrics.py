@@ -91,7 +91,7 @@ class MetricWrapperBase(Collector):
 
     def collect(self) -> Iterable[Metric]:
         metric = self._get_metric()
-        metric.pb_mf.metric = self._samples()
+        metric.pb_mf.metric.extend(self._samples())
         return [metric]
 
     def __str__(self) -> str:
@@ -224,11 +224,11 @@ class MetricWrapperBase(Collector):
         with self._lock:
             metrics = self._metrics.copy()
         for labels, metric in metrics.items():
-            series_labels = [PBLabelPair(name, value) for name, value in zip(self._labelnames, labels)]
+            series_labels = [PBLabelPair(name=name, value=value) for name, value in zip(self._labelnames, labels)]
             for pb_metric in metric._samples():
-                metric = PBMetric(label=series_labels)
-                metric.CopyFrom(pb_metric)
-                yield metric
+                new_metric = PBMetric(label=series_labels)
+                new_metric.MergeFrom(pb_metric)
+                yield new_metric
 
     def _child_samples(self) -> Iterable[PBMetric]:  # pragma: no cover
         raise NotImplementedError('_child_samples() must be implemented by %r' % self)
@@ -451,12 +451,12 @@ class Gauge(MetricWrapperBase):
         self._raise_if_not_observable()
 
         def samples(_: Gauge) -> Iterable[PBMetric]:
-            return (make_gauge_metric(label_names=(), label_values=(), value=float(f())))
+            return (make_gauge_metric(label_names=(), label_values=(), value=float(f())),)
 
         self._child_samples = types.MethodType(samples, self)  # type: ignore
 
     def _child_samples(self) -> Iterable[PBMetric]:
-        return (make_gauge_metric(label_names=(), label_values=(), value=self._value.get()))
+        return (make_gauge_metric(label_names=(), label_values=(), value=self._value.get()),)
 
 
 class Summary(MetricWrapperBase):
@@ -522,6 +522,8 @@ class Summary(MetricWrapperBase):
     def _child_samples(self) -> Iterable[PBMetric]:
         return (
             make_summary_metric(
+                label_names=(),
+                label_values=(),
                 sample_count=self._count.get(),
                 sample_sum=self._sum.get(),
                 created=self._created if _use_created else None,
@@ -663,7 +665,7 @@ class Histogram(MetricWrapperBase):
         acc = 0.0
         for i, bound in enumerate(self._upper_bounds):
             acc += self._buckets[i].get()
-            buckets.append((bound, acc))
+            buckets.append((str(bound), acc, self._buckets[i].get_exemplar()))
         # # samples.append(Sample('_count', {}, acc, None, None))
         # # Don't include sum and thus count if there's negative buckets.
         # sample_count = None
@@ -678,7 +680,7 @@ class Histogram(MetricWrapperBase):
                     label_names=(),
                     label_values=(),
                     buckets=buckets,
-                    sum_value=acc,
+                    sum_value=self._sum.get(),
                     created=self._created if _use_created else None,
                 )
             ),
@@ -720,7 +722,9 @@ class Info(MetricWrapperBase):
 
     def _child_samples(self) -> Iterable[PBMetric]:
         with self._lock:
-            return (make_untyped_metric(label_names=(), label_values=(), value=self._value, timestamp=1.0),)
+            label_names = sorted(self._value.keys())
+            label_values = [self._value[name] for name in label_names]
+            return (make_untyped_metric(label_names=label_names, label_values=label_values, value=1),)
 
 
 class Enum(MetricWrapperBase):

@@ -150,6 +150,7 @@ class MultiProcessCollector:
                         samples[(metric.name + '_count', labels)] = acc
 
             # Convert to correct sample format.
+            # alesieur
             metric.samples = [Sample(name_, dict(labels), value) for (name_, labels), value in samples.items()]
         return metrics.values()
 

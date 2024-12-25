@@ -33,7 +33,7 @@ class TestGenerateText(unittest.TestCase):
         c.inc()
         self.assertEqual(b'# HELP cc A counter\n# TYPE cc counter\ncc_total 1.0\ncc_created 123.456\n# EOF\n',
                          generate_latest(self.registry))
-        
+
     def test_counter_utf8(self):
         c = Counter('cc.with.dots', 'A counter', registry=self.registry)
         c.inc()
@@ -116,7 +116,6 @@ hh_created 123.456
         s.observe(1.5, {'le': '7'})
         s.observe(2.5, {'a': 'b'})
         s.observe(3.5, {'a': '\n"\\'})
-        print(generate_latest(self.registry))
         self.assertEqual(b"""# HELP hh A histogram
 # TYPE hh histogram
 hh_bucket{le="1.0"} 1.0 # {a="b"} 0.5 123.456

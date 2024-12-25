@@ -1,4 +1,5 @@
-from typing import Dict, Optional, Sequence, Tuple, Union
+from functools import partial
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from .prompb.metrics_pb2 import LabelPair as PBLabelPair
 from .prompb.metrics_pb2 import Metric as PBMetric
@@ -8,7 +9,7 @@ from .prompb.metrics_pb2 import Untyped as PBUntyped
 from .prompb.utils import convert_counter_to_sample, convert_gauge_to_sample, convert_histogram_to_sample, convert_summary_to_sample, convert_untyped_to_sample
 from .prompb.utils import convert_timestamp_to_timestampms
 from .prompb.utils import make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric, make_untyped_metric
-from .samples import Exemplar, Sample, Timestamp
+from .samples import Exemplar, NativeHistogram, Sample, Timestamp
 from .validation import _validate_metric_name
 
 METRIC_TYPES = (
@@ -45,8 +46,8 @@ class Metric:
             raise ValueError('Invalid metric type: ' + typ)
         self.type: str = typ
 
-        pb_typ = getattr(PBMetricType, typ, PBMetricType.UNTYPED)
-        if pb_typ == 'gaugehistogram':
+        pb_typ = getattr(PBMetricType, typ.upper(), PBMetricType.UNTYPED)
+        if typ == 'gaugehistogram':
             pb_typ = PBMetricType.GAUGE_HISTOGRAM
 
         self.pb_mf = PBMetricFamily(
@@ -57,8 +58,12 @@ class Metric:
             unit=unit,
         )
 
+        self._samples = []
+
     @property
     def name(self) -> str:
+        if self.pb_mf.name.endswith('_info'):
+            return self.pb_mf.name[:-5]
         return self.pb_mf.name
 
     @property
@@ -76,46 +81,44 @@ class Metric:
         elif self.pb_mf.type == PBMetricType.GAUGE:
             convert = convert_gauge_to_sample
         elif self.pb_mf.type == PBMetricType.SUMMARY:
-            convert_summary_to_sample
+            convert = convert_summary_to_sample
         elif self.pb_mf.type == PBMetricType.UNTYPED:
             convert = convert_untyped_to_sample
-        elif self.pb_mf.type in (PBMetricType.HISTOGRAM, PBMetricType.GAUGE_HISTOGRAM):
+        elif self.pb_mf.type == PBMetricType.HISTOGRAM:
             convert = convert_histogram_to_sample
+        elif self.pb_mf.type == PBMetricType.GAUGE_HISTOGRAM:
+            convert = partial(convert_histogram_to_sample, gauge_histogram=True)
 
-        samples = []
+        samples: List[Sample] = []
         for metric in self.pb_mf.metric:
-            samples.extend(convert(self.name, metric))
-        return samples
+            samples.extend(convert(self.pb_mf.name, metric))
+        return self._samples + samples
 
-    # alesieur
-    # def add_sample(self, name: str, labels: Dict[str, str], value: float, timestamp: Optional[Union[Timestamp, float]] = None, exemplar: Optional[Exemplar] = None, native_histogram: Optional[NativeHistogram] = None) -> None:
-    #     """Add a sample to the metric.
+    @samples.setter
+    def samples(self, samples: Sequence[Sample]) -> None:
+        self._samples = samples
+        self.pb_mf.ClearField('metric')
 
-    #     Internal-only, do not use."""
-    #     # alesieur: what about exemplar and native_histogram? :awkward:
-    #     # Counter and Histograms are the only types w/ exemplars under the hood
-    #     self.pb_mf.metric.append(
-    #         PBMetric(
-    #             label=[PBLabelPair(name=k, value=v) for k, v in labels.items()],
-    #             untyped=PBUntyped(
-    #                 value=value,
-    #             ),
-    #             timestamp_ms=convert_timestamp_to_timestampms(timestamp),
-    #         ),
-    #     )
+    def add_sample(self, name: str, labels: Dict[str, str], value: float, timestamp: Optional[Union[Timestamp, float]] = None, exemplar: Optional[Exemplar] = None, native_histogram: Optional[NativeHistogram] = None) -> None:
+        """Add a sample to the metric.
+
+        Internal-only, do not use."""
+        # alesieur: what about exemplar and native_histogram? :awkward:
+        # Counter and Histograms are the only types w/ exemplars under the hood
+        self._samples.append(Sample(name, labels, value, timestamp, exemplar, native_histogram))
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Metric) and self.type == other.type and self.pb_mf == other.pb_mf
 
     def __repr__(self) -> str:
-        return "TODO: alesieur"  # alesieur
-        # return "Metric({}, {}, {}, {}, {})".format(
-        #     self.name,
-        #     self.documentation,
-        #     self.type,
-        #     self.unit,
-        #     self.samples,
-        # )
+        # return "TODO: alesieur"  # alesieur
+        return "Metric({}, {}, {}, {}, {})".format(
+            self.name,
+            self.documentation,
+            self.type,
+            self.unit,
+            self.samples,
+        )
 
     def _restricted_metric(self, names):
         """Build a snapshot of a metric with samples restricted to a given set of names."""
@@ -259,10 +262,6 @@ class GaugeMetricFamily(Metric):
             )
         )
 
-    @property
-    def samples(self) -> Sequence[Sample]:
-        return [convert_gauge_to_sample(self.name, metric) for metric in self.pb_mf.metric]
-
 
 class SummaryMetricFamily(Metric):
     """A single summary and its samples.
@@ -358,12 +357,11 @@ class HistogramMetricFamily(Metric):
               The buckets must be sorted, and +Inf present.
           sum_value: The sum value of the metric.
         """
-        # alesieur: need to double check if bucket can still have exemplars or not
         self.pb_mf.metric.append(
             make_histogram_metric(
                 label_names=self._labelnames,
                 label_values=labels,
-                buckets=[bucket[:2] for bucket in buckets],  # no exemplars in regular histograms
+                buckets=buckets,
                 sum_value=sum_value,
                 timestamp=timestamp,
                 created=created,

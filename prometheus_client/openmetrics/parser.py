@@ -144,7 +144,7 @@ def _parse_remaining_text(text):
     val = _parse_value(split_text[0])
     if len(split_text) == 1:
         # We don't have timestamp or exemplar
-        return val, None, None  
+        return val, None, None
 
     timestamp = []
     exemplar_value = []
@@ -239,7 +239,7 @@ def _parse_nh_sample(text, suffixes):
     # Finding a native histogram sample requires careful parsing of
     # possibly-quoted text, which can appear in metric names, label names, and
     # values.
-    # 
+    #
     # First, we need to determine if there are metric labels. Find the space
     # between the metric definition and the rest of the line. Look for unquoted
     # space or {.
@@ -257,22 +257,22 @@ def _parse_nh_sample(text, suffixes):
         labels_end = i = _next_unquoted_char(text, '}', i)
         if labels_end == -1:
             raise ValueError
-    
+
     # If there is no subsequent unquoted {, then it's definitely not a nh.
     nh_value_start = _next_unquoted_char(text, '{', i + 1)
     if nh_value_start == -1:
         return
-    
+
     # Edge case: if there is an unquoted # between the metric definition and the {,
     # then this is actually an exemplar
     exemplar = _next_unquoted_char(text, '#', i + 1)
     if exemplar != -1 and exemplar < nh_value_start:
         return
-    
+
     nh_value_end = _next_unquoted_char(text, '}', nh_value_start)
     if nh_value_end == -1:
         raise ValueError
-    
+
     if has_metric_labels:
         labelstext = text[labels_start + 1:labels_end]
         labels = parse_labels(labelstext, True)
@@ -289,7 +289,7 @@ def _parse_nh_sample(text, suffixes):
             # Edge case: the only "label" is the name definition.
             if not labels:
                 labels = None
-             
+
         nh_value = text[nh_value_start:]
         nat_hist_value = _parse_nh_struct(nh_value)
         return Sample(name, labels, None, None, None, nat_hist_value)
@@ -302,12 +302,12 @@ def _parse_nh_sample(text, suffixes):
             raise ValueError("the sample name of a native histogram should have no suffixes", name)
         # Not possible for UTF-8 name here, that would have been caught as having a labelset.
         nat_hist_value = _parse_nh_struct(nh_value)
-        return Sample(name, None, None, None, None, nat_hist_value)      
+        return Sample(name, None, None, None, None, nat_hist_value)
 
 
 def _parse_nh_struct(text):
     pattern = r'(\w+):\s*([^,}]+)'
-    
+
     re_spans = re.compile(r'(positive_spans|negative_spans):\[(\d+:\d+,\d+:\d+)\]')
     re_deltas = re.compile(r'(positive_deltas|negative_deltas):\[(-?\d+(?:,-?\d+)*)\]')
 
@@ -329,7 +329,7 @@ def _parse_nh_struct(text):
         pos_spans = (BucketSpan(arg1[0], arg1[1]), BucketSpan(arg2[0], arg2[1]))
     except KeyError:
         pos_spans = None
-       
+
     try:
         neg_spans_text = spans['negative_spans']
         elems = neg_spans_text.split(',')
@@ -338,21 +338,21 @@ def _parse_nh_struct(text):
         neg_spans = (BucketSpan(arg1[0], arg1[1]), BucketSpan(arg2[0], arg2[1]))
     except KeyError:
         neg_spans = None
-       
+
     try:
         pos_deltas_text = deltas['positive_deltas']
         elems = pos_deltas_text.split(',')
         pos_deltas = tuple([int(x) for x in elems])
     except KeyError:
         pos_deltas = None
-       
+
     try:
         neg_deltas_text = deltas['negative_deltas']
         elems = neg_deltas_text.split(',')
         neg_deltas = tuple([int(x) for x in elems])
     except KeyError:
         neg_deltas = None
-       
+
     return NativeHistogram(
         count_value=count_value,
         sum_value=sum_value,
@@ -364,7 +364,7 @@ def _parse_nh_struct(text):
         pos_deltas=pos_deltas,
         neg_deltas=neg_deltas
     )
-        
+
 
 def _group_for_sample(sample, name, typ):
     if typ == 'info':
@@ -488,7 +488,7 @@ def text_fd_to_metric_families(fd):
         _validate_metric_name(name)
         metric = Metric(name, documentation, typ, unit)
         # TODO: check labelvalues are valid utf8
-        metric.samples = samples
+        metric.samples = samples  # alesieur
         return metric
 
     is_nh = False
@@ -528,7 +528,7 @@ def text_fd_to_metric_families(fd):
                 group_timestamp_samples = set()
                 samples = []
                 allowed_names = [candidate_name]
-            
+
             if parts[1] == 'HELP':
                 if documentation is not None:
                     raise ValueError("More than one HELP for metric: " + line)
@@ -554,7 +554,7 @@ def text_fd_to_metric_families(fd):
                 # It's not a native histogram
                 if sample is None:
                     is_nh = False
-                    sample = _parse_sample(line)              
+                    sample = _parse_sample(line)
             else:
                 is_nh = False
                 sample = _parse_sample(line)
@@ -632,7 +632,7 @@ def text_fd_to_metric_families(fd):
                     (typ in ['histogram', 'gaugehistogram'] and sample.name.endswith('_bucket'))
                     or (typ in ['counter'] and sample.name.endswith('_total'))):
                 raise ValueError("Invalid line only histogram/gaugehistogram buckets and counters can have exemplars: " + line)
-    
+
     if name is not None:
         yield build_metric(name, documentation, typ, unit, samples)
 
