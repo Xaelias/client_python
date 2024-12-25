@@ -4,8 +4,8 @@ from typing import Optional, Sequence, Tuple, Union
 from .prompb.metrics_pb2 import (
     Bucket,
     Counter,
-    Gauge,
     Exemplar,
+    Gauge,
     Histogram,
     LabelPair,
     Metric,
@@ -114,7 +114,7 @@ def make_summary_metric(
 def make_histogram_metric(
     label_names: Sequence[str],
     label_values: Sequence[str],
-    buckets: Sequence[Tuple[str, float]],
+    buckets: Sequence[Tuple[str, float]],  # (bound, count)
     sum_value: Optional[float],
     timestamp: Optional[Union[Timestamp, float]] = None,
     created: Optional[float] = None,

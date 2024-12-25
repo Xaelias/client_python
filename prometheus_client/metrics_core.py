@@ -1,19 +1,14 @@
 from typing import Dict, Optional, Sequence, Tuple, Union
 
-from .prompb.metrics_pb2 import Bucket as PBBucket
-from .prompb.metrics_pb2 import Counter as PBCounter
 from .prompb.metrics_pb2 import Exemplar as Exemplar
-from .prompb.metrics_pb2 import Gauge as PBGauge
-from .prompb.metrics_pb2 import Histogram as PBHistogram
 from .prompb.metrics_pb2 import LabelPair as PBLabelPair
 from .prompb.metrics_pb2 import Metric as PBMetric
 from .prompb.metrics_pb2 import MetricFamily as PBMetricFamily
 from .prompb.metrics_pb2 import MetricType as PBMetricType
-from .prompb.metrics_pb2 import Summary as PBSummary
 from .prompb.metrics_pb2 import Untyped as PBUntyped
 from .prompb.utils import convert_timestamp_to_timestampms
-from .prompb.utils import make_untyped_metric, make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric
-from .samples import NativeHistogram, Timestamp  # alesieur
+from .prompb.utils import make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric, make_untyped_metric
+from .samples import Timestamp
 from .validation import _validate_metric_name
 
 METRIC_TYPES = (

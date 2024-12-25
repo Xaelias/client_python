@@ -11,18 +11,9 @@ import warnings
 from . import values  # retain this import style for testability
 from .context_managers import ExceptionCounter, InprogressTracker, Timer
 from .metrics_core import Metric
-# from .prompb.metrics_pb2 import Bucket as PBBucket
-# from .prompb.metrics_pb2 import Counter as PBCounter
-# from .prompb.metrics_pb2 import Exemplar as Exemplar
-# from .prompb.metrics_pb2 import Gauge as PBGauge
-# from .prompb.metrics_pb2 import Histogram as PBHistogram
 from .prompb.metrics_pb2 import LabelPair as PBLabelPair
 from .prompb.metrics_pb2 import Metric as PBMetric
-# from .prompb.metrics_pb2 import MetricFamily as PBMetricFamily
-# from .prompb.metrics_pb2 import MetricType as PBMetricType
-# from .prompb.metrics_pb2 import Summary as PBSummary
-# from .prompb.metrics_pb2 import Untyped as PBUntyped
-from .prompb.utils import make_untyped_metric, make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric
+from .prompb.utils import make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric, make_untyped_metric
 from .registry import Collector, CollectorRegistry, REGISTRY
 from .samples import Exemplar
 from .utils import floatToGoString, INF
