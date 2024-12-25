@@ -3,12 +3,12 @@ from typing import Dict, NamedTuple, Optional, Sequence, Tuple, Union
 
 from google.protobuf.internal.encoder import _VarintBytes  # type: ignore
 
+from ..metrics_core import CounterMetricFamily, GaugeMetricFamily
+from ..registry import CollectorRegistry, REGISTRY
 from .metrics_pb2 import (
     Bucket, Counter, Exemplar, Gauge, Histogram, LabelPair, Metric,
     MetricFamily, MetricType, Summary,
 )
-from ..metrics_core import CounterMetricFamily, GaugeMetricFamily
-from ..registry import CollectorRegistry, REGISTRY
 
 CONTENT_TYPE_LATEST = "application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited; escaping=values"
 
@@ -185,30 +185,10 @@ CONTENT_TYPE_LATEST = "application/vnd.google.protobuf; proto=io.prometheus.clie
 
 
 def generate_latest(registry: CollectorRegistry = REGISTRY) -> bytes:
-    output: Sequence[MetricFamily] = []
-    # for metric in registry.collect():
-    #     try:
-    #         if metric.type == "counter":
-    #             output.append(generate_counter_mf(metric))
-    #         elif metric.type == "gauge":
-    #             output.append(generate_gauge_mf(metric))
-    #         elif metric.type == "summary":
-    #             output.append(generate_summary_mf(metric))
-    #         elif metric.type == "histogram":
-    #             output.append(generate_histogram_mf(metric))
-    #         else:
-    #             raise ValueError(f"Unknown metric type {metric.type}")
-    #     except Exception as exception:
-    #         exception.args = (exception.args or ("",)) + (metric,)
-    #         raise
-
     delimited_output = b""
-    print(f"output length: {len(output)}")
-    for metric in output:
-        serialized_metric = metric.SerializeToString()
-        # delimited_output += struct.pack('<i', len(serialized_metric))
+    for metric in registry.collect():
+        serialized_metric = metric.pb_mf.SerializeToString()
         delimited_output += _VarintBytes(len(serialized_metric))
         delimited_output += serialized_metric
-        print(f"serialized {metric.name}#{metric.type}")
 
     return delimited_output

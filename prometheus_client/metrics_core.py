@@ -34,7 +34,10 @@ class Metric:
 
         if typ == 'gaugehistogram':
             typ = 'gauge_histogram'
-        pb_typ = getattr(PBMetricType, typ.upper(), PBMetricType.UNTYPED),
+        pb_typ = getattr(PBMetricType, typ.upper(), PBMetricType.UNTYPED)
+
+        self.name = name
+        self.type = typ
 
         self.pb_mf = PBMetricFamily(
             name=name,
@@ -172,6 +175,8 @@ class CounterMetricFamily(Metric):
                 created=created
             )
         )
+        if 'scrape_counts' in self.name:
+            breakpoint()
 
 
 class GaugeMetricFamily(Metric):

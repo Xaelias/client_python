@@ -318,6 +318,7 @@ def generate_latest(registry: CollectorRegistry = REGISTRY) -> bytes:
 
 def choose_encoder(accept_header: str) -> Tuple[Callable[[CollectorRegistry], bytes], str]:
     accept_header = accept_header or ''
+    print(accept_header)
     for accepted in accept_header.split(','):
         if accepted.split(';')[0].strip() == 'application/openmetrics-text':
             return (openmetrics.generate_latest,
