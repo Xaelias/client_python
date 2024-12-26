@@ -62,7 +62,7 @@ class Metric:
             unit=unit,
         )
 
-        self._samples = []
+        self._samples: List[Sample] = []
 
     @property
     def name(self) -> str:
@@ -101,7 +101,7 @@ class Metric:
 
     @samples.setter
     def samples(self, samples: Sequence[Sample]) -> None:
-        self._samples = samples
+        self._samples = list(samples)
         self.pb_mf.ClearField('metric')
 
     def add_sample(self, name: str, labels: Dict[str, str], value: float, timestamp: Optional[Union[Timestamp, float]] = None, exemplar: Optional[Exemplar] = None, native_histogram: Optional[NativeHistogram] = None) -> None:
@@ -480,12 +480,13 @@ class InfoMetricFamily(Metric):
           labels: A list of label values
           value: A dict of labels
         """
+        metric_labels = list(labels)
         info_label_names = tuple(sorted(value.keys()))
         info_label_values = [value[k] for k in info_label_names]
 
         self.pb_mf.metric.append(
             PBMetric(
-                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames + info_label_names, labels + info_label_values)],
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames + info_label_names, metric_labels + info_label_values)],
                 untyped=PBUntyped(value=1),
                 timestamp_ms=convert_timestamp_to_timestampms(timestamp),
             )

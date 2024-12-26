@@ -139,7 +139,7 @@ def make_summary_metric(
 def make_histogram_metric(
     label_names: Sequence[str],
     label_values: Sequence[str],
-    buckets: Sequence[Union[Tuple[str, float], Tuple[str, float, Exemplar]]],
+    buckets: Sequence[Union[Tuple[str, float], Tuple[str, float, ExemplarTuple]]],
     sum_value: Optional[float],
     timestamp: Optional[Union[Timestamp, float]] = None,
     created: Optional[float] = None,
@@ -153,7 +153,7 @@ def make_histogram_metric(
 
         exemplar = None
         if len(bucket) == 3:
-            exemplar = convert_exemplar_to_pbexemplar(bucket[2])
+            exemplar = convert_exemplar_to_pbexemplar(bucket[2])  # type: ignore
         pb_buckets.append(Bucket(cumulative_count_float=count, upper_bound=float(bound), exemplar=exemplar))
 
     # Don't include sum and thus count if there's negative buckets.
