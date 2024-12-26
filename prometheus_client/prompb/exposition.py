@@ -5,6 +5,7 @@ from google.protobuf.internal.encoder import _VarintBytes  # type: ignore
 
 # from ..metrics_core import CounterMetricFamily, GaugeMetricFamily
 from ..registry import CollectorRegistry, REGISTRY
+
 # from .metrics_pb2 import (
 #     Bucket, Counter, Exemplar, Gauge, Histogram, LabelPair, Metric,
 #     MetricFamily, MetricType, Summary,

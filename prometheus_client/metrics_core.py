@@ -6,9 +6,13 @@ from .prompb.metrics_pb2 import Metric as PBMetric
 from .prompb.metrics_pb2 import MetricFamily as PBMetricFamily
 from .prompb.metrics_pb2 import MetricType as PBMetricType
 from .prompb.metrics_pb2 import Untyped as PBUntyped
-from .prompb.utils import convert_counter_to_sample, convert_gauge_to_sample, convert_histogram_to_sample, convert_summary_to_sample, convert_untyped_to_sample
-from .prompb.utils import convert_timestamp_to_timestampms
-from .prompb.utils import make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric, make_untyped_metric
+from .prompb.utils import (
+    convert_counter_to_sample, convert_gauge_to_sample,
+    convert_histogram_to_sample, convert_summary_to_sample,
+    convert_timestamp_to_timestampms, convert_untyped_to_sample,
+    make_counter_metric, make_gauge_metric, make_histogram_metric,
+    make_summary_metric, make_untyped_metric,
+)
 from .samples import Exemplar, NativeHistogram, Sample, Timestamp
 from .validation import _validate_metric_name
 

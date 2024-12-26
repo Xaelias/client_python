@@ -14,11 +14,10 @@ from prometheus_client.core import (
 )
 from prometheus_client.decorator import getargspec
 from prometheus_client.metrics import _get_use_created
+from prometheus_client.samples import Exemplar
 from prometheus_client.validation import (
     disable_legacy_validation, enable_legacy_validation,
 )
-
-from prometheus_client.samples import Exemplar
 
 
 def assert_not_observable(fn, *args, **kwargs):

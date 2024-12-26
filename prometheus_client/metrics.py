@@ -13,7 +13,10 @@ from .context_managers import ExceptionCounter, InprogressTracker, Timer
 from .metrics_core import Metric
 from .prompb.metrics_pb2 import LabelPair as PBLabelPair
 from .prompb.metrics_pb2 import Metric as PBMetric
-from .prompb.utils import make_counter_metric, make_gauge_metric, make_histogram_metric, make_summary_metric, make_untyped_metric
+from .prompb.utils import (
+    make_counter_metric, make_gauge_metric, make_histogram_metric,
+    make_summary_metric, make_untyped_metric,
+)
 from .registry import Collector, CollectorRegistry, REGISTRY
 from .samples import Exemplar
 from .utils import floatToGoString, INF

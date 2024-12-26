@@ -3,14 +3,7 @@ from typing import Iterable, Optional, Sequence, Tuple, Union
 from google.protobuf.timestamp_pb2 import Timestamp as PBTimestamp
 
 from .metrics_pb2 import (
-    Bucket,
-    Counter,
-    Exemplar,
-    Gauge,
-    Histogram,
-    LabelPair,
-    Metric,
-    Summary,
+    Bucket, Counter, Exemplar, Gauge, Histogram, LabelPair, Metric, Summary,
     Untyped,
 )
 from ..samples import Exemplar as ExemplarTuple
@@ -43,7 +36,7 @@ def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, float,
 def convert_timestampms_to_timestamp(timestamp: float) -> Optional[Timestamp]:
     if not timestamp:
         return None
-    return Timestamp(sec=timestamp // 1_000, nsec = (timestamp % 1_000) * 1_000_000)
+    return Timestamp(sec=timestamp // 1_000, nsec=(timestamp % 1_000) * 1_000_000)
 
 
 def convert_pbtimestamp_to_timestamp(timestamp: PBTimestamp) -> float:
