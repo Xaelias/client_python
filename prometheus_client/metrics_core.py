@@ -62,7 +62,7 @@ class Metric:
 
     @property
     def name(self) -> str:
-        if self.pb_mf.name.endswith('_info'):
+        if self.pb_mf.name.endswith('_info') and self.type == 'info':
             return self.pb_mf.name[:-5]
         return self.pb_mf.name
 
@@ -92,7 +92,8 @@ class Metric:
         samples: List[Sample] = []
         for metric in self.pb_mf.metric:
             samples.extend(convert(self.pb_mf.name, metric))
-        return self._samples + samples
+
+        return samples + self._samples
 
     @samples.setter
     def samples(self, samples: Sequence[Sample]) -> None:
@@ -108,7 +109,7 @@ class Metric:
         self._samples.append(Sample(name, labels, value, timestamp, exemplar, native_histogram))
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, Metric) and self.type == other.type and self.pb_mf == other.pb_mf
+        return isinstance(other, Metric) and self.type == other.type and self.samples == other.samples
 
     def __repr__(self) -> str:
         # return "TODO: alesieur"  # alesieur
@@ -452,9 +453,12 @@ class InfoMetricFamily(Metric):
           labels: A list of label values
           value: A dict of labels
         """
+        info_label_names = tuple(sorted(value.keys()))
+        info_label_values = [value[k] for k in info_label_names]
+
         self.pb_mf.metric.append(
             PBMetric(
-                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames, labels)],
+                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames + info_label_names, labels + info_label_values)],
                 untyped=PBUntyped(value=1),
                 timestamp_ms=convert_timestamp_to_timestampms(timestamp),
             )

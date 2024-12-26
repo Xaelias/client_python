@@ -22,7 +22,12 @@ class Timestamp:
         return float(self.sec) + float(self.nsec) / 1e9
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, Timestamp) and self.sec == other.sec and self.nsec == other.nsec
+        if isinstance(other, Timestamp):
+            return self.sec == other.sec and self.nsec == other.nsec
+        elif isinstance(other, float) or isinstance(other, int):
+            return float(self) == float(other)
+        return False
+
 
     def __ne__(self, other: object) -> bool:
         return not self == other

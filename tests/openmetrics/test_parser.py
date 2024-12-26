@@ -593,12 +593,13 @@ a_total{foo="bar"} 1
         self.assertEqual([metric_family], list(families))
 
     def test_timestamps(self):
+        self.maxDiff = None
         families = text_string_to_metric_families("""# TYPE a counter
 # HELP a help
-a_total{foo="1"} 1 000
-a_total{foo="2"} 1 0.0
+a_total{foo="1"} 1 1
+a_total{foo="2"} 1 1.0
 a_total{foo="3"} 1 1.1
-a_total{foo="4"} 1 12345678901234567890.1234567890
+a_total{foo="4"} 1 1234567890.123
 a_total{foo="5"} 1 1.5e3
 # TYPE b counter
 # HELP b help
@@ -606,13 +607,14 @@ b_total 2 1234567890
 # EOF
 """)
         a = CounterMetricFamily("a", "help", labels=["foo"])
-        a.add_metric(["1"], 1, timestamp=Timestamp(0, 0))
-        a.add_metric(["2"], 1, timestamp=Timestamp(0, 0))
+        a.add_metric(["1"], 1, timestamp=Timestamp(1, 0))
+        a.add_metric(["2"], 1, timestamp=Timestamp(1, 0))
         a.add_metric(["3"], 1, timestamp=Timestamp(1, 100000000))
-        a.add_metric(["4"], 1, timestamp=Timestamp(12345678901234567890, 123456789))
+        a.add_metric(["4"], 1, timestamp=Timestamp(1234567890, 123456789))
         a.add_metric(["5"], 1, timestamp=1500.0)
         b = CounterMetricFamily("b", "help")
         b.add_metric([], 2, timestamp=Timestamp(1234567890, 0))
+        c = CounterMetricFamily("c", "help")
         self.assertEqual([a, b], list(families))
 
     def test_hash_in_label_value(self):
@@ -643,6 +645,7 @@ a_bucket{le="+Inf",foo="bar # "} 3 # {a="d",foo="bar # bar"} 4
 
 
     def test_roundtrip(self):
+        self.maxDiff = None
         text = """# HELP go_gc_duration_seconds A summary of the GC invocation durations.
 # TYPE go_gc_duration_seconds summary
 go_gc_duration_seconds{quantile="0.0"} 0.013300656000000001

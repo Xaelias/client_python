@@ -105,7 +105,6 @@ hh_bucket{le="0.0"} 1.0
 hh_bucket{le="0.5"} 1.0
 hh_bucket{le="1.0"} 1.0
 hh_bucket{le="+Inf"} 1.0
-hh_count 1.0
 hh_created 123.456
 # EOF
 """, generate_latest(self.registry))

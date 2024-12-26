@@ -90,6 +90,7 @@ def _parse_timestamp(timestamp):
     except ValueError:
         try:
             # aaaa.bbbb. Nanosecond resolution supported.
+            # alesieur: not true anymore
             parts = timestamp.split('.', 1)
             return Timestamp(int(parts[0]), int(parts[1][:9].ljust(9, "0")))
         except ValueError:

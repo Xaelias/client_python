@@ -19,10 +19,10 @@ from ..samples import Sample, Timestamp
 from ..utils import floatToGoString
 
 
-def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float]]) -> Optional[int]:
+def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float, int]]) -> Optional[int]:
     if isinstance(timestamp, Timestamp):
-        return int(float(timestamp) // 1_000)
-    elif isinstance(timestamp, float):
+        return timestamp.sec * 1000 + timestamp.nsec // 1_000_000
+    elif isinstance(timestamp, float) or isinstance(timestamp, int):
         return int(timestamp * 1_000)
     elif timestamp is None:
         return None
@@ -31,16 +31,24 @@ def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float]
 
 def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, float]]) -> Optional[PBTimestamp]:
     if isinstance(timestamp, Timestamp):
-        ts = PBTimestamp()
-        ts.FromDatetime(datetime.fromtimestamp(float(timestamp)))
-        return ts
+        return PBTimestamp(seconds=timestamp.sec, nanos=timestamp.nsec)
     elif isinstance(timestamp, float):
-        ts = PBTimestamp()
-        ts.FromDatetime(datetime.fromtimestamp(timestamp))
-        return ts
+        sec, _, nsec = str(timestamp).partition('.')
+        nsec = f"{nsec:09}"
+        return PBTimestamp(seconds=int(sec) or 0, nanos=int(nsec) or 0)
     elif timestamp is None:
         return None
     raise ValueError(f"Invalid type for timestamp: {type(timestamp)}")
+
+
+def convert_timestampms_to_timestamp(timestamp: float) -> Optional[Timestamp]:
+    if not timestamp:
+        return None
+    return Timestamp(sec=timestamp // 1_000, nsec = (timestamp % 1_000) * 1_000_000)
+
+
+def convert_pbtimestamp_to_timestamp(timestamp: PBTimestamp) -> float:
+    return timestamp.seconds + timestamp.nanos / 1e9
 
 
 def convert_exemplar_to_pbexemplar(exemplar: Optional[ExemplarTuple]) -> Optional[Exemplar]:
@@ -140,9 +148,10 @@ def make_histogram_metric(
         pb_buckets.append(Bucket(cumulative_count_float=count, upper_bound=float(bound), exemplar=exemplar))
 
     # Don't include sum and thus count if there's negative buckets.
-    sample_count = buckets[-1][1]
+    sample_count = None
     sample_sum = None
     if gauge_histogram or (float(buckets[0][0]) >= 0 and sum_value is not None):
+        sample_count = buckets[-1][1]
         sample_sum = sum_value
 
     return Metric(
@@ -167,7 +176,7 @@ def convert_pbexemplar_to_exemplar(exemplar: Exemplar) -> Optional[ExemplarTuple
     return ExemplarTuple(
         labels={label.name: label.value for label in exemplar.label},
         value=exemplar.value,
-        timestamp=exemplar.timestamp.ToDatetime().timestamp() if exemplar.timestamp != EMPTY_TIMESTAMP else None,
+        timestamp=convert_pbtimestamp_to_timestamp(exemplar.timestamp) if exemplar.timestamp != EMPTY_TIMESTAMP else None,
     )
 
 
@@ -177,7 +186,7 @@ def convert_untyped_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
             name=name,
             labels={label.name: label.value for label in metric.label},
             value=metric.untyped.value,
-            timestamp=metric.timestamp_ms or None,
+            timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
         ),
@@ -190,7 +199,7 @@ def convert_counter_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
         name=name + "_total",
         labels=labels,
         value=metric.counter.value,
-        timestamp=metric.timestamp_ms or None,
+        timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
         exemplar=convert_pbexemplar_to_exemplar(metric.counter.exemplar),
         native_histogram=None,
     )
@@ -202,8 +211,8 @@ def convert_counter_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
         Sample(
             name=name + '_created',
             labels=labels,
-            value=metric.counter.created_timestamp.ToDatetime().timestamp(),
-            timestamp=metric.timestamp_ms or None,
+            value=convert_pbtimestamp_to_timestamp(metric.counter.created_timestamp),
+            timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
         ),
@@ -216,7 +225,7 @@ def convert_gauge_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
             name=name,
             labels={label.name: label.value for label in metric.label},
             value=metric.gauge.value,
-            timestamp=metric.timestamp_ms or None,
+            timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
         ),
@@ -230,7 +239,7 @@ def convert_summary_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
             name=name + '_count',
             labels=labels,
             value=metric.summary.sample_count,
-            timestamp=metric.timestamp_ms or None,
+            timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
         ),
@@ -238,19 +247,20 @@ def convert_summary_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
             name=name + '_sum',
             labels=labels,
             value=metric.summary.sample_sum,
-            timestamp=metric.timestamp_ms or None,
+            timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
         ),
     )
+
     if metric.summary.created_timestamp == EMPTY_TIMESTAMP:
         return samples
     return samples + (
         Sample(
             name=name + '_created',
             labels=labels,
-            value=metric.summary.created_timestamp.ToDatetime().timestamp(),
-            timestamp=metric.timestamp_ms or None,
+            value=convert_pbtimestamp_to_timestamp(metric.summary.created_timestamp),
+            timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
         ),
@@ -267,30 +277,30 @@ def convert_histogram_to_sample(name: str, metric: Metric, gauge_histogram: bool
                 name=name + '_bucket',
                 labels=labels | {'le': floatToGoString(bucket.upper_bound)},
                 value=bucket.cumulative_count_float,
-                timestamp=metric.timestamp_ms or None,
+                timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
                 exemplar=convert_pbexemplar_to_exemplar(bucket.exemplar),
                 native_histogram=None,
             ),
         )
 
-    samples.append(
-        Sample(
-            name=name + ('_gcount' if gauge_histogram else '_count'),
-            labels=labels,
-            value=metric.histogram.sample_count_float,
-            timestamp=metric.timestamp_ms or None,
-            exemplar=None,
-            native_histogram=None,
-        ),
-    )
     # Don't include sum if there's negative buckets.
     if gauge_histogram or len(metric.histogram.bucket) > 0 and metric.histogram.bucket[0].upper_bound >= 0 and metric.histogram.sample_sum >= 0:
+        samples.append(
+            Sample(
+                name=name + ('_gcount' if gauge_histogram else '_count'),
+                labels=labels,
+                value=metric.histogram.sample_count_float,
+                timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
+                exemplar=None,
+                native_histogram=None,
+            ),
+        )
         samples.append(
             Sample(
                 name=name + ('_gsum' if gauge_histogram else '_sum'),
                 labels=labels,
                 value=metric.histogram.sample_sum,
-                timestamp=metric.timestamp_ms or None,
+                timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
                 exemplar=None,
                 native_histogram=None,
             ),
@@ -303,8 +313,8 @@ def convert_histogram_to_sample(name: str, metric: Metric, gauge_histogram: bool
         Sample(
             name=name + '_created',
             labels=labels,
-            value=metric.histogram.created_timestamp.ToDatetime().timestamp(),
-            timestamp=metric.timestamp_ms or None,
+            value=convert_pbtimestamp_to_timestamp(metric.histogram.created_timestamp),
+            timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
         ),
