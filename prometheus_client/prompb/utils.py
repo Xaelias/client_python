@@ -33,7 +33,7 @@ def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, float,
         return PBTimestamp(seconds=timestamp.sec, nanos=timestamp.nsec)
     elif isinstance(timestamp, (int, float)):
         sec, _, nsec = str(timestamp).partition('.')
-        nsec = f"{nsec:09}"
+        nsec = f"{nsec:<09}"
         return PBTimestamp(seconds=int(sec) or 0, nanos=int(nsec) or 0)
     elif timestamp is None:
         return None
