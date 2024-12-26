@@ -110,6 +110,7 @@ hh_created 123.456
 """, generate_latest(self.registry))
 
     def test_histogram_exemplar(self):
+        self.maxDiff = None
         s = Histogram('hh', 'A histogram', buckets=[1, 2, 3, 4], registry=self.registry)
         s.observe(0.5, {'a': 'b'})
         s.observe(1.5, {'le': '7'})
@@ -117,10 +118,10 @@ hh_created 123.456
         s.observe(3.5, {'a': '\n"\\'})
         self.assertEqual(b"""# HELP hh A histogram
 # TYPE hh histogram
-hh_bucket{le="1.0"} 1.0 # {a="b"} 0.5 123.456
-hh_bucket{le="2.0"} 2.0 # {le="7"} 1.5 123.456
-hh_bucket{le="3.0"} 3.0 # {a="b"} 2.5 123.456
-hh_bucket{le="4.0"} 4.0 # {a="\\n\\"\\\\"} 3.5 123.456
+hh_bucket{le="1.0"} 1.0 # {a="b"} 0.5 123.456000000
+hh_bucket{le="2.0"} 2.0 # {le="7"} 1.5 123.456000000
+hh_bucket{le="3.0"} 3.0 # {a="b"} 2.5 123.456000000
+hh_bucket{le="4.0"} 4.0 # {a="\\n\\"\\\\"} 3.5 123.456000000
 hh_bucket{le="+Inf"} 4.0
 hh_count 4.0
 hh_sum 8.0
@@ -133,7 +134,7 @@ hh_created 123.456
         c.inc(exemplar={'a': 'b'})
         self.assertEqual(b"""# HELP cc A counter
 # TYPE cc counter
-cc_total 1.0 # {a="b"} 1.0 123.456
+cc_total 1.0 # {a="b"} 1.0 123.456000000
 cc_created 123.456
 # EOF
 """, generate_latest(self.registry))

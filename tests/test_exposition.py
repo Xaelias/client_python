@@ -16,8 +16,8 @@ from prometheus_client.exposition import (
     basic_auth_handler, choose_encoder, default_handler, MetricsHandler,
     passthrough_redirect_handler, tls_auth_handler,
 )
-import prometheus_client.prompb.exposition as prompb
 import prometheus_client.openmetrics.exposition as openmetrics
+import prometheus_client.prompb.exposition as prompb
 
 
 class TestGenerateText(unittest.TestCase):

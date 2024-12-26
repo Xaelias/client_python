@@ -71,7 +71,6 @@ a{quantile="0.5"} 0.7
         self.assertEqualMetrics([metric_family], list(families))
 
     def test_simple_histogram(self):
-        self.maxDiff = None
         families = text_string_to_metric_families("""# TYPE a histogram
 # HELP a help
 a_bucket{le="1.0"} 0

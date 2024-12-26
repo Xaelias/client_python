@@ -593,7 +593,6 @@ a_total{foo="bar"} 1
         self.assertEqual([metric_family], list(families))
 
     def test_timestamps(self):
-        self.maxDiff = None
         families = text_string_to_metric_families("""# TYPE a counter
 # HELP a help
 a_total{foo="1"} 1 1
@@ -645,7 +644,6 @@ a_bucket{le="+Inf",foo="bar # "} 3 # {a="d",foo="bar # bar"} 4
 
 
     def test_roundtrip(self):
-        self.maxDiff = None
         text = """# HELP go_gc_duration_seconds A summary of the GC invocation durations.
 # TYPE go_gc_duration_seconds summary
 go_gc_duration_seconds{quantile="0.0"} 0.013300656000000001

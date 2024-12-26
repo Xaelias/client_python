@@ -2,13 +2,13 @@ from typing import Iterable, Optional, Sequence, Tuple, Union
 
 from google.protobuf.timestamp_pb2 import Timestamp as PBTimestamp
 
-from ..samples import Exemplar as ExemplarTuple
-from ..samples import Sample, Timestamp
-from ..utils import floatToGoString
 from .metrics_pb2 import (
     Bucket, Counter, Exemplar, Gauge, Histogram, LabelPair, Metric, Summary,
     Untyped,
 )
+from ..samples import Exemplar as ExemplarTuple
+from ..samples import Sample, Timestamp
+from ..utils import floatToGoString
 
 
 def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, int, float]]) -> Optional[int]:
@@ -49,8 +49,13 @@ def convert_timestampms_to_timestamp(timestamp: Union[int, float]) -> Optional[T
     raise ValueError(f"Invalid type for timestamp: {type(timestamp)}")
 
 
+# alesieur: handle None?
 def convert_pbtimestamp_to_timestamp(timestamp: PBTimestamp) -> float:
     return timestamp.seconds + timestamp.nanos / 1e9
+
+
+def convert_pbtimestamp_to_sampletimestamp(timestamp: PBTimestamp) -> Timestamp:
+    return Timestamp(sec=timestamp.seconds, nsec=timestamp.nanos)
 
 
 def convert_exemplar_to_pbexemplar(exemplar: Optional[ExemplarTuple]) -> Optional[Exemplar]:
@@ -189,26 +194,31 @@ def make_histogram_metric(
     )
 
 
-EMPTY_EXEMPLAR = Exemplar()
-EMPTY_TIMESTAMP = PBTimestamp()
-
-
-def convert_pbexemplar_to_exemplar(exemplar: Exemplar) -> Optional[ExemplarTuple]:
-    if exemplar == EMPTY_EXEMPLAR:
+def convert_pbexemplar_to_exemplar(exemplar: Optional[Exemplar]) -> Optional[ExemplarTuple]:
+    if exemplar is None:
         return None
+
+    timestamp = None
+    if exemplar.HasField('timestamp'):
+        timestamp = convert_pbtimestamp_to_sampletimestamp(exemplar.timestamp)
+    
     return ExemplarTuple(
         labels={label.name: label.value for label in exemplar.label},
         value=exemplar.value,
-        timestamp=convert_pbtimestamp_to_timestamp(exemplar.timestamp) if exemplar.timestamp != EMPTY_TIMESTAMP else None,
+        timestamp=timestamp,
     )
 
 
 def convert_untyped_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
+    if not metric.HasField('untyped'):
+        raise ValueError(f"Metric is not an Untyped: {metric}")
+    untyped = metric.untyped
+
     return (
         Sample(
             name=name,
             labels={label.name: label.value for label in metric.label},
-            value=metric.untyped.value,
+            value=untyped.value,
             timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
@@ -217,24 +227,31 @@ def convert_untyped_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
 
 
 def convert_counter_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
+    if not metric.HasField('counter'):
+        raise ValueError(f"Metric is not a Counter: {metric}")
+
+    counter = metric.counter
+    exemplar = counter.exemplar if counter.HasField('exemplar') else None
+
     labels = {label.name: label.value for label in metric.label}
     sample = Sample(
         name=name + "_total",
         labels=labels,
-        value=metric.counter.value,
+        value=counter.value,
         timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
-        exemplar=convert_pbexemplar_to_exemplar(metric.counter.exemplar),
+        exemplar=convert_pbexemplar_to_exemplar(exemplar),
         native_histogram=None,
     )
 
-    if metric.counter.created_timestamp == EMPTY_TIMESTAMP:
+    if not counter.HasField('created_timestamp'):
         return (sample,)
+
     return (
         sample,
         Sample(
             name=name + '_created',
             labels=labels,
-            value=convert_pbtimestamp_to_timestamp(metric.counter.created_timestamp),
+            value=convert_pbtimestamp_to_timestamp(counter.created_timestamp),
             timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
@@ -243,11 +260,15 @@ def convert_counter_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
 
 
 def convert_gauge_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
+    if not metric.HasField('gauge'):
+        raise ValueError(f"Metric is not a Gauge: {metric}")
+    gauge = metric.gauge
+
     return (
         Sample(
             name=name,
             labels={label.name: label.value for label in metric.label},
-            value=metric.gauge.value,
+            value=gauge.value,
             timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
@@ -256,12 +277,16 @@ def convert_gauge_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
 
 
 def convert_summary_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
+    if not metric.HasField('summary'):
+        raise ValueError(f"Metric is not a Summary: {metric}")
+    summary = metric.summary
+
     labels = {label.name: label.value for label in metric.label}
     samples = (
         Sample(
             name=name + '_count',
             labels=labels,
-            value=metric.summary.sample_count,
+            value=summary.sample_count,
             timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
@@ -269,20 +294,21 @@ def convert_summary_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
         Sample(
             name=name + '_sum',
             labels=labels,
-            value=metric.summary.sample_sum,
+            value=summary.sample_sum,
             timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
         ),
     )
 
-    if metric.summary.created_timestamp == EMPTY_TIMESTAMP:
+    if not summary.HasField('created_timestamp'):
         return samples
+
     return samples + (
         Sample(
             name=name + '_created',
             labels=labels,
-            value=convert_pbtimestamp_to_timestamp(metric.summary.created_timestamp),
+            value=convert_pbtimestamp_to_timestamp(summary.created_timestamp),
             timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,
@@ -291,28 +317,33 @@ def convert_summary_to_sample(name: str, metric: Metric) -> Iterable[Sample]:
 
 
 def convert_histogram_to_sample(name: str, metric: Metric, gauge_histogram: bool = False) -> Iterable[Sample]:
+    if not metric.HasField('histogram'):
+        raise ValueError(f"Metric is not a Histogram: {metric}")
+    histogram = metric.histogram
+
     samples = []
     labels = {label.name: label.value for label in metric.label}
 
-    for bucket in metric.histogram.bucket:
+    for bucket in histogram.bucket:
+        exemplar = bucket.exemplar if bucket.HasField('exemplar') else None
         samples.append(
             Sample(
                 name=name + '_bucket',
                 labels=labels | {'le': floatToGoString(bucket.upper_bound)},
                 value=bucket.cumulative_count_float,
                 timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
-                exemplar=convert_pbexemplar_to_exemplar(bucket.exemplar),
+                exemplar=convert_pbexemplar_to_exemplar(exemplar),
                 native_histogram=None,
             ),
         )
 
     # Don't include sum if there's negative buckets.
-    if gauge_histogram or len(metric.histogram.bucket) > 0 and metric.histogram.bucket[0].upper_bound >= 0 and metric.histogram.sample_sum >= 0:
+    if gauge_histogram or len(histogram.bucket) > 0 and histogram.bucket[0].upper_bound >= 0 and histogram.sample_sum >= 0:
         samples.append(
             Sample(
                 name=name + ('_gcount' if gauge_histogram else '_count'),
                 labels=labels,
-                value=metric.histogram.sample_count_float,
+                value=histogram.sample_count_float,
                 timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
                 exemplar=None,
                 native_histogram=None,
@@ -322,21 +353,21 @@ def convert_histogram_to_sample(name: str, metric: Metric, gauge_histogram: bool
             Sample(
                 name=name + ('_gsum' if gauge_histogram else '_sum'),
                 labels=labels,
-                value=metric.histogram.sample_sum,
+                value=histogram.sample_sum,
                 timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
                 exemplar=None,
                 native_histogram=None,
             ),
         )
 
-    if metric.histogram.created_timestamp == EMPTY_TIMESTAMP:
+    if not histogram.HasField('created_timestamp'):
         return samples
 
     return samples + [
         Sample(
             name=name + '_created',
             labels=labels,
-            value=convert_pbtimestamp_to_timestamp(metric.histogram.created_timestamp),
+            value=convert_pbtimestamp_to_timestamp(histogram.created_timestamp),
             timestamp=convert_timestampms_to_timestamp(metric.timestamp_ms),
             exemplar=None,
             native_histogram=None,

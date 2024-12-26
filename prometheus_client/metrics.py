@@ -663,7 +663,6 @@ class Histogram(MetricWrapperBase):
         # if _use_created:
         #     samples.append(Sample('_created', {}, self._created, None, None))
         # return tuple(samples)
-
         buckets = []
         acc = 0.0
         for i, bound in enumerate(self._upper_bounds):
