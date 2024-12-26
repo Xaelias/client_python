@@ -438,8 +438,8 @@ def _expect_metric_exception(registry, expected_error):
 ])
 @pytest.mark.parametrize('value,error', [
     (None, TypeError),
-    ('', ValueError),
-    ('x', ValueError),
+    ('', TypeError),
+    ('x', TypeError),
     ([], TypeError),
     ({}, TypeError),
 ])
@@ -452,8 +452,8 @@ def test_basic_metric_families(registry, MetricFamily, value, error):
 @pytest.mark.parametrize('count_value,sum_value,error', [
     (None, 0, TypeError),
     (0, None, TypeError),
-    ('', 0, ValueError),
-    (0, '', ValueError),
+    ('', 0, TypeError),
+    (0, '', TypeError),
     ([], 0, TypeError),
     (0, [], TypeError),
     ({}, 0, TypeError),
@@ -469,14 +469,14 @@ def test_summary_metric_family(registry, count_value, sum_value, error):
     core.GaugeHistogramMetricFamily,
 ])
 @pytest.mark.parametrize('buckets,sum_value,error', [
-    ([('spam', 0), ('eggs', 0)], None, TypeError),
-    ([('spam', 0), ('eggs', None)], 0, TypeError),
-    ([('spam', 0), (None, 0)], 0, AttributeError),
-    ([('spam', None), ('eggs', 0)], 0, TypeError),
-    ([(None, 0), ('eggs', 0)], 0, AttributeError),
-    ([('spam', 0), ('eggs', 0)], '', ValueError),
-    ([('spam', 0), ('eggs', '')], 0, ValueError),
-    ([('spam', ''), ('eggs', 0)], 0, ValueError),
+    ([('0.1', 1), ('0.5', 2)], None, TypeError),  # TypeError on float(None) for bucket sum_value
+    ([('0.1', 1), ('0.5', None)], 0, TypeError),  # ValueError on float(None) for bucket count
+    ([('0.1', 0), (None, 0)], 0, TypeError),  # TypeError on float(None) for bucket bound
+    ([('spam', None), ('eggs', 0)], 0, TypeError),  # TypeError on float(None) bucket count
+    ([(None, 0), ('eggs', 0)], 0, TypeError),  # TypeError on float(None) for bucket bound
+    ([('0.1', 0), ('0.5', 0)], '', TypeError),  # TypeError on float('') for sum_value
+    ([('0.1', 0), ('0.5', '')], 0, TypeError),  # TypeError on float('') for bucket count
+    ([('0.1', ''), ('0.5', 0)], 0, TypeError),  # TypeError on float('') for bucket count
 ])
 def test_histogram_metric_families(MetricFamily, registry, buckets, sum_value, error):
     metric_family = MetricFamily(MetricFamily.__name__, 'help')

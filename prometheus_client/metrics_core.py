@@ -213,16 +213,20 @@ class CounterMetricFamily(Metric):
           value: The value of the metric
           created: Optional unix timestamp the child was created at.
         """
-        self.pb_mf.metric.append(
-            make_counter_metric(
-                label_names=self._labelnames,
-                label_values=labels,
-                value=value,
-                timestamp=timestamp,
-                exemplar=exemplar,
-                created=created,
+        try:
+            self.pb_mf.metric.append(
+                make_counter_metric(
+                    label_names=self._labelnames,
+                    label_values=labels,
+                    value=value,
+                    timestamp=timestamp,
+                    exemplar=exemplar,
+                    created=created,
+                )
             )
-        )
+        except Exception as exception:
+            exception.args = (exception.args or ('',)) + (self,)
+            raise
 
 
 class GaugeMetricFamily(Metric):
@@ -254,14 +258,18 @@ class GaugeMetricFamily(Metric):
           labels: A list of label values
           value: A float
         """
-        self.pb_mf.metric.append(
-            make_gauge_metric(
-                label_names=self._labelnames,
-                label_values=labels,
-                value=value,
-                timestamp=timestamp,
+        try:
+            self.pb_mf.metric.append(
+                make_gauge_metric(
+                    label_names=self._labelnames,
+                    label_values=labels,
+                    value=value,
+                    timestamp=timestamp,
+                )
             )
-        )
+        except Exception as exception:
+            exception.args = (exception.args or ('',)) + (self,)
+            raise
 
 
 class SummaryMetricFamily(Metric):
@@ -304,16 +312,20 @@ class SummaryMetricFamily(Metric):
           count_value: The count value of the metric.
           sum_value: The sum value of the metric.
         """
-        self.pb_mf.metric.append(
-            make_summary_metric(
-                label_names=self._labelnames,
-                label_values=labels,
-                sample_count=count_value,
-                sample_sum=sum_value,
-                timestamp=timestamp,
-                created=created,
+        try:
+            self.pb_mf.metric.append(
+                make_summary_metric(
+                    label_names=self._labelnames,
+                    label_values=labels,
+                    sample_count=count_value,
+                    sample_sum=sum_value,
+                    timestamp=timestamp,
+                    created=created,
+                )
             )
-        )
+        except Exception as exception:
+            exception.args = (exception.args or ('',)) + (self,)
+            raise
 
 
 class HistogramMetricFamily(Metric):
@@ -358,16 +370,20 @@ class HistogramMetricFamily(Metric):
               The buckets must be sorted, and +Inf present.
           sum_value: The sum value of the metric.
         """
-        self.pb_mf.metric.append(
-            make_histogram_metric(
-                label_names=self._labelnames,
-                label_values=labels,
-                buckets=buckets,
-                sum_value=sum_value,
-                timestamp=timestamp,
-                created=created,
+        try:
+            self.pb_mf.metric.append(
+                make_histogram_metric(
+                    label_names=self._labelnames,
+                    label_values=labels,
+                    buckets=buckets,
+                    sum_value=sum_value,
+                    timestamp=timestamp,
+                    created=created,
+                )
             )
-        )
+        except Exception as exception:
+            exception.args = (exception.args or ('',)) + (self,)
+            raise
 
 
 class GaugeHistogramMetricFamily(Metric):
@@ -408,17 +424,21 @@ class GaugeHistogramMetricFamily(Metric):
               The buckets must be sorted, and +Inf present.
           gsum_value: The sum value of the metric.
         """
-        self.pb_mf.metric.append(
-            make_histogram_metric(
-                label_names=self._labelnames,
-                label_values=labels,
-                buckets=buckets,
-                sum_value=gsum_value,
-                timestamp=timestamp,
-                created=created,
-                gauge_histogram=True,
+        try:
+            self.pb_mf.metric.append(
+                make_histogram_metric(
+                    label_names=self._labelnames,
+                    label_values=labels,
+                    buckets=buckets,
+                    sum_value=gsum_value,
+                    timestamp=timestamp,
+                    created=created,
+                    gauge_histogram=True,
+                )
             )
-        )
+        except Exception as exception:
+            exception.args = (exception.args or ('',)) + (self,)
+            raise
 
 
 class InfoMetricFamily(Metric):

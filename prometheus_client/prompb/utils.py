@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Iterable, Optional, Sequence, Tuple, Union
 
 from google.protobuf.timestamp_pb2 import Timestamp as PBTimestamp
@@ -69,6 +68,9 @@ def make_untyped_metric(
     value: float,
     timestamp: Optional[Union[Timestamp, float]] = None,
 ) -> Metric:
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"Invalid type for Untyped value: {type(value)}")
+
     return Metric(
         label=[LabelPair(name=k, value=v) for k, v in zip(label_names, label_values)],
         untyped=Untyped(value=value),
@@ -84,6 +86,9 @@ def make_counter_metric(
     exemplar: Optional[ExemplarTuple] = None,
     created: Optional[float] = None,
 ) -> Metric:
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"Invalid type for Counter value: {type(value)}")
+
     return Metric(
         label=[LabelPair(name=k, value=v) for k, v in zip(label_names, label_values)],
         counter=Counter(
@@ -101,6 +106,9 @@ def make_gauge_metric(
     value: float,
     timestamp: Optional[Union[Timestamp, float]] = None,
 ) -> Metric:
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"Invalid type for Gauge value: {type(value)}")
+
     return Metric(
         label=[LabelPair(name=k, value=v) for k, v in zip(label_names, label_values)],
         gauge=Gauge(
@@ -118,6 +126,11 @@ def make_summary_metric(
     timestamp: Optional[Union[Timestamp, float]] = None,
     created: Optional[float] = None,
 ) -> Metric:
+    if not isinstance(sample_count, (int, float)):
+        raise TypeError(f"Invalid type for sample_count: {type(sample_count)}")
+    if not isinstance(sample_sum, (int, float)):
+        raise TypeError(f"Invalid type for sample_sum: {type(sample_sum)}")
+
     return Metric(
         label=[LabelPair(name=k, value=v) for k, v in zip(label_names, label_values)],
         summary=Summary(
@@ -142,6 +155,9 @@ def make_histogram_metric(
     pb_buckets = []
     for bucket in buckets:
         bound, count = bucket[:2]
+        if not isinstance(count, (int, float)):
+            raise TypeError(f"Invalid type for bucket count: {type(count)}")
+
         exemplar = None
         if len(bucket) == 3:
             exemplar = convert_exemplar_to_pbexemplar(bucket[2])
@@ -150,8 +166,10 @@ def make_histogram_metric(
     # Don't include sum and thus count if there's negative buckets.
     sample_count = None
     sample_sum = None
-    if gauge_histogram or (float(buckets[0][0]) >= 0 and sum_value is not None):
+    if gauge_histogram or float(buckets[0][0]) >= 0:
         sample_count = buckets[-1][1]
+        if not isinstance(sum_value, (int, float)):
+            raise TypeError(f"Invalid type for sum_value: {type(sum_value)}")
         sample_sum = sum_value
 
     return Metric(

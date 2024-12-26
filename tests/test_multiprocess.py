@@ -270,13 +270,13 @@ class TestMultiProcess(unittest.TestCase):
         self.assertEqual(
             metrics['c'].samples, [Sample('c_total', labels, 2.0)]
         )
-        metrics['g'].samples.sort(key=lambda x: x[1]['pid'])
+        metrics['g']._samples.sort(key=lambda x: x[1]['pid'])
         self.assertEqual(metrics['g'].samples, [
             Sample('g', add_label('pid', '0'), 1.0),
             Sample('g', add_label('pid', '1'), 1.0),
         ])
 
-        metrics['h'].samples.sort(
+        metrics['h']._samples.sort(
             key=lambda x: (x[0], float(x[1].get('le', 0)))
         )
         expected_histogram = [
@@ -347,7 +347,7 @@ class TestMultiProcess(unittest.TestCase):
             m.name: m for m in self.collector.merge(files, accumulate=False)
         }
 
-        metrics['h'].samples.sort(
+        metrics['h']._samples.sort(
             key=lambda x: (x[0], float(x[1].get('le', 0)))
         )
         expected_histogram = [

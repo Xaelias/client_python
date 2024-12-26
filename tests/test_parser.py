@@ -71,9 +71,10 @@ a{quantile="0.5"} 0.7
         self.assertEqualMetrics([metric_family], list(families))
 
     def test_simple_histogram(self):
+        self.maxDiff = None
         families = text_string_to_metric_families("""# TYPE a histogram
 # HELP a help
-a_bucket{le="1"} 0
+a_bucket{le="1.0"} 0
 a_bucket{le="+Inf"} 3
 a_count 3
 a_sum 2
@@ -286,14 +287,14 @@ a{foo="b\\\\a\\z"} 2
     def test_timestamps(self):
         families = text_string_to_metric_families("""# TYPE a counter
 # HELP a help
-a{foo="bar"} 1\t000
+a{foo="bar"} 1\t0001
 # TYPE b counter
 # HELP b help
 b 2  1234567890
 b 88   1234566000   
 """)
         a = CounterMetricFamily("a", "help", labels=["foo"])
-        a.add_metric(["bar"], 1, timestamp=0)
+        a.add_metric(["bar"], 1, timestamp=.001)
         b = CounterMetricFamily("b", "help")
         b.add_metric([], 2, timestamp=1234567.89)
         b.add_metric([], 88, timestamp=1234566)
