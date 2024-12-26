@@ -16,6 +16,7 @@ from prometheus_client.exposition import (
     basic_auth_handler, choose_encoder, default_handler, MetricsHandler,
     passthrough_redirect_handler, tls_auth_handler,
 )
+import prometheus_client.prompb.exposition as prompb
 import prometheus_client.openmetrics.exposition as openmetrics
 
 
@@ -487,6 +488,7 @@ def test_choose_encoder():
     assert choose_encoder(None) == (generate_latest, CONTENT_TYPE_LATEST)
     assert choose_encoder(CONTENT_TYPE_LATEST) == (generate_latest, CONTENT_TYPE_LATEST)
     assert choose_encoder(openmetrics.CONTENT_TYPE_LATEST) == (openmetrics.generate_latest, openmetrics.CONTENT_TYPE_LATEST)
+    assert choose_encoder(prompb.CONTENT_TYPE_LATEST) == (prompb.generate_latest, prompb.CONTENT_TYPE_LATEST)
 
 
 if __name__ == '__main__':

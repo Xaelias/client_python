@@ -11,32 +11,42 @@ from .metrics_pb2 import (
 )
 
 
-def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float, int]]) -> Optional[int]:
+def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, int, float]]) -> Optional[int]:
     if isinstance(timestamp, Timestamp):
         return timestamp.sec * 1000 + timestamp.nsec // 1_000_000
-    elif isinstance(timestamp, float) or isinstance(timestamp, int):
+    
+    if isinstance(timestamp, (int, float)):
         return int(timestamp * 1_000)
-    elif timestamp is None:
+    
+    if timestamp is None:
         return None
+    
     raise ValueError(f"Invalid type for timestamp: {type(timestamp)}")
 
 
-def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, float, int]]) -> Optional[PBTimestamp]:
+def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, int, float]]) -> Optional[PBTimestamp]:
     if isinstance(timestamp, Timestamp):
         return PBTimestamp(seconds=timestamp.sec, nanos=timestamp.nsec)
-    elif isinstance(timestamp, (int, float)):
+    
+    if isinstance(timestamp, (int, float)):
         sec, _, nsec = str(timestamp).partition('.')
         nsec = f"{nsec:<09}"
         return PBTimestamp(seconds=int(sec) or 0, nanos=int(nsec) or 0)
-    elif timestamp is None:
+    
+    if timestamp is None:
         return None
+    
     raise ValueError(f"Invalid type for timestamp: {type(timestamp)}")
 
 
-def convert_timestampms_to_timestamp(timestamp: float) -> Optional[Timestamp]:
+def convert_timestampms_to_timestamp(timestamp: Union[int, float]) -> Optional[Timestamp]:
     if not timestamp:
         return None
-    return Timestamp(sec=timestamp // 1_000, nsec=(timestamp % 1_000) * 1_000_000)
+        
+    if isinstance(timestamp, (int, float)):
+        return Timestamp(sec=timestamp // 1_000, nsec=(timestamp % 1_000) * 1_000_000)
+    
+    raise ValueError(f"Invalid type for timestamp: {type(timestamp)}")
 
 
 def convert_pbtimestamp_to_timestamp(timestamp: PBTimestamp) -> float:
@@ -50,8 +60,10 @@ def convert_exemplar_to_pbexemplar(exemplar: Optional[ExemplarTuple]) -> Optiona
             value=exemplar.value,
             timestamp=convert_timestamp_to_pbtimestamp(exemplar.timestamp)
         )
-    elif exemplar is None:
+    
+    if exemplar is None:
         return None
+    
     raise ValueError(f"Invalid type for exemplar: {type(exemplar)}")
 
 
