@@ -108,15 +108,17 @@ class Metric:
         """Add a sample to the metric.
 
         Internal-only, do not use."""
-        # alesieur: what about exemplar and native_histogram? :awkward:
-        # Counter and Histograms are the only types w/ exemplars under the hood
         self._samples.append(Sample(name, labels, value, timestamp, exemplar, native_histogram))
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, Metric) and self.type == other.type and self.samples == other.samples
+        return (isinstance(other, Metric)
+                and self.name == other.name
+                and self.documentation == other.documentation
+                and self.type == other.type
+                and self.unit == other.unit
+                and self.samples == other.samples)
 
     def __repr__(self) -> str:
-        # return "TODO: alesieur"  # alesieur
         return "Metric({}, {}, {}, {}, {})".format(
             self.name,
             self.documentation,
@@ -127,7 +129,7 @@ class Metric:
 
     def _restricted_metric(self, names):
         """Build a snapshot of a metric with samples restricted to a given set of names."""
-        samples = [sample for sample in self.samples if sample.name in names]
+        samples = [s for s in self.samples if s[0] in names]
         if samples:
             m = Metric(self.name, self.documentation, self.type, self.unit)
             m.samples = samples
@@ -162,14 +164,18 @@ class UnknownMetricFamily(Metric):
         labels: A list of label values
         value: The value of the metric.
         """
-        self.pb_mf.metric.append(
-            make_untyped_metric(
-                label_names=self._labelnames,
-                label_values=labels,
-                value=value,
-                timestamp=timestamp,
+        try:
+            self.pb_mf.metric.append(
+                make_untyped_metric(
+                    label_names=self._labelnames,
+                    label_values=labels,
+                    value=value,
+                    timestamp=timestamp,
+                )
             )
-        )
+        except Exception as exception:
+            exception.args = (exception.args or ('',)) + (self,)
+            raise
 
 
 # For backward compatibility.
@@ -187,7 +193,7 @@ class CounterMetricFamily(Metric):
                  documentation: str,
                  value: Optional[float] = None,
                  labels: Optional[Sequence[str]] = None,
-                 created: Optional[float] = None,  # alesieur
+                 created: Optional[float] = None,
                  unit: str = '',
                  exemplar: Optional[Union[Exemplar, dict]] = None,
                  ):
@@ -480,17 +486,21 @@ class InfoMetricFamily(Metric):
           labels: A list of label values
           value: A dict of labels
         """
-        metric_labels = list(labels)
-        info_label_names = tuple(sorted(value.keys()))
-        info_label_values = [value[k] for k in info_label_names]
+        try:
+            metric_labels = list(labels)
+            info_label_names = tuple(sorted(value.keys()))
+            info_label_values = [value[k] for k in info_label_names]
 
-        self.pb_mf.metric.append(
-            PBMetric(
-                label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames + info_label_names, metric_labels + info_label_values)],
-                untyped=PBUntyped(value=1),
-                timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+            self.pb_mf.metric.append(
+                PBMetric(
+                    label=[PBLabelPair(name=k, value=v) for k, v in zip(self._labelnames + info_label_names, metric_labels + info_label_values)],
+                    untyped=PBUntyped(value=1),
+                    timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+                )
             )
-        )
+        except Exception as exception:
+            exception.args = (exception.args or ('',)) + (self,)
+            raise
 
 
 class StateSetMetricFamily(Metric):
@@ -525,13 +535,17 @@ class StateSetMetricFamily(Metric):
           labels: A list of label values
           value: A dict of string state names to booleans
         """
-        labels = tuple(labels)
-        for state, enabled in sorted(value.items()):
-            self.pb_mf.metric.append(
-                make_untyped_metric(
-                    label_names=self._labelnames + (self.name,),
-                    label_values=labels + (state,),
-                    value=1 if enabled else 0,
-                    timestamp=timestamp,
+        try:
+            labels = tuple(labels)
+            for state, enabled in sorted(value.items()):
+                self.pb_mf.metric.append(
+                    make_untyped_metric(
+                        label_names=self._labelnames + (self.name,),
+                        label_values=labels + (state,),
+                        value=1 if enabled else 0,
+                        timestamp=timestamp,
+                    )
                 )
-            )
+        except Exception as exception:
+            exception.args = (exception.args or ('',)) + (self,)
+            raise

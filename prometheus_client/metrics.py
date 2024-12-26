@@ -652,30 +652,12 @@ class Histogram(MetricWrapperBase):
         return Timer(self, 'observe')
 
     def _child_samples(self) -> Iterable[PBMetric]:
-        # samples = []
-        # acc = 0.0
-        # for i, bound in enumerate(self._upper_bounds):
-        #     acc += self._buckets[i].get()
-        #     samples.append(Sample('_bucket', {'le': floatToGoString(bound)}, acc, None, self._buckets[i].get_exemplar()))
-        # samples.append(Sample('_count', {}, acc, None, None))
-        # if self._upper_bounds[0] >= 0:
-        #     samples.append(Sample('_sum', {}, self._sum.get(), None, None))
-        # if _use_created:
-        #     samples.append(Sample('_created', {}, self._created, None, None))
-        # return tuple(samples)
         buckets = []
         acc = 0.0
         for i, bound in enumerate(self._upper_bounds):
             acc += self._buckets[i].get()
             buckets.append((str(bound), acc, self._buckets[i].get_exemplar()))
-        # # samples.append(Sample('_count', {}, acc, None, None))
-        # # Don't include sum and thus count if there's negative buckets.
-        # sample_count = None
-        # sample_sum = None
-        # if self._upper_bounds[0] >= 0:
-        #     samples.append(Sample('_sum', {}, self._sum.get(), None, None))
-        # if _use_created:
-        #     samples.append(Sample('_created', {}, self._created, None, None))
+        
         return (
             (
                 make_histogram_metric(

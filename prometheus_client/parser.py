@@ -296,7 +296,7 @@ def text_fd_to_metric_families(fd: TextIO) -> Iterable[Metric]:
                     new_samples.append(Sample(s[0] + '_total', *s[1:]))
                     samples = new_samples
         metric = Metric(name, documentation, typ)
-        metric.samples = samples  # alesieur
+        metric.samples = samples
         return metric
 
     for line in fd:

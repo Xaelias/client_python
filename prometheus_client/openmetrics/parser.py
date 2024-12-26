@@ -90,7 +90,6 @@ def _parse_timestamp(timestamp):
     except ValueError:
         try:
             # aaaa.bbbb. Nanosecond resolution supported.
-            # alesieur: not true anymore
             parts = timestamp.split('.', 1)
             return Timestamp(int(parts[0]), int(parts[1][:9].ljust(9, "0")))
         except ValueError:
@@ -489,7 +488,7 @@ def text_fd_to_metric_families(fd):
         _validate_metric_name(name)
         metric = Metric(name, documentation, typ, unit)
         # TODO: check labelvalues are valid utf8
-        metric.samples = samples  # alesieur
+        metric.samples = samples
         return metric
 
     is_nh = False
