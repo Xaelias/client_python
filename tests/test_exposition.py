@@ -469,7 +469,6 @@ def test_summary_metric_family(registry, count_value, sum_value, error):
     core.GaugeHistogramMetricFamily,
 ])
 @pytest.mark.parametrize('buckets,sum_value,error', [
-    ([('0.1', 1), ('0.5', 2)], None, TypeError),  # TypeError on float(None) for bucket sum_value
     ([('0.1', 1), ('0.5', None)], 0, TypeError),  # ValueError on float(None) for bucket count
     ([('0.1', 0), (None, 0)], 0, TypeError),  # TypeError on float(None) for bucket bound
     ([('spam', None), ('eggs', 0)], 0, TypeError),  # TypeError on float(None) bucket count

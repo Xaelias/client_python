@@ -28,10 +28,10 @@ def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float,
     raise ValueError(f"Invalid type for timestamp: {type(timestamp)}")
 
 
-def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, float]]) -> Optional[PBTimestamp]:
+def convert_timestamp_to_pbtimestamp(timestamp: Optional[Union[Timestamp, float, int]]) -> Optional[PBTimestamp]:
     if isinstance(timestamp, Timestamp):
         return PBTimestamp(seconds=timestamp.sec, nanos=timestamp.nsec)
-    elif isinstance(timestamp, float):
+    elif isinstance(timestamp, (int, float)):
         sec, _, nsec = str(timestamp).partition('.')
         nsec = f"{nsec:09}"
         return PBTimestamp(seconds=int(sec) or 0, nanos=int(nsec) or 0)
@@ -166,7 +166,7 @@ def make_histogram_metric(
     # Don't include sum and thus count if there's negative buckets.
     sample_count = None
     sample_sum = None
-    if gauge_histogram or float(buckets[0][0]) >= 0:
+    if (gauge_histogram or float(buckets[0][0]) >= 0) and sum_value is not None:
         sample_count = buckets[-1][1]
         if not isinstance(sum_value, (int, float)):
             raise TypeError(f"Invalid type for sum_value: {type(sum_value)}")

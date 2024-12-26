@@ -112,7 +112,7 @@ def _validate_labelnames(cls, labelnames):
     return labelnames
 
 
-def _validate_exemplar(exemplar):
+def _validate_exemplar(exemplar: dict):
     """Raises ValueError if the exemplar is invalid."""
     runes = 0
     for k, v in exemplar.items():

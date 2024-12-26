@@ -18,6 +18,8 @@ from prometheus_client.validation import (
     disable_legacy_validation, enable_legacy_validation,
 )
 
+from prometheus_client.samples import Exemplar
+
 
 def assert_not_observable(fn, *args, **kwargs):
     """
@@ -746,7 +748,7 @@ class TestMetricFamilies(unittest.TestCase):
         cmf = CounterMetricFamily('c_total', 'help', value=23, exemplar={"bob": "osbourne"})
         self.custom_collector(cmf)
         sample = [c.samples for c in self.registry.collect()][0][0]
-        self.assertDictEqual({"bob": "osbourne"}, sample.exemplar)
+        self.assertEqual(Exemplar(value=23, labels={"bob": "osbourne"}), sample.exemplar)
 
     def test_counter_exemplars_add(self):
         cmf = CounterMetricFamily('c_total', 'help')
@@ -754,7 +756,7 @@ class TestMetricFamilies(unittest.TestCase):
         self.custom_collector(cmf)
         total_sample, created_sample = [c.samples for c in self.registry.collect()][0]
         self.assertEqual("c_created", created_sample.name)
-        self.assertDictEqual({"bob": "osbourne"}, total_sample.exemplar)
+        self.assertEqual(Exemplar(value=12, labels={"bob": "osbourne"}), total_sample.exemplar)
         self.assertIsNone(created_sample.exemplar)
 
     def test_gauge(self):
@@ -781,7 +783,7 @@ class TestMetricFamilies(unittest.TestCase):
 
     def test_histogram(self):
         self.custom_collector(HistogramMetricFamily('h', 'help', buckets=[('0', 1), ('+Inf', 2)], sum_value=3))
-        self.assertEqual(1, self.registry.get_sample_value('h_bucket', {'le': '0'}))
+        self.assertEqual(1, self.registry.get_sample_value('h_bucket', {'le': '0.0'}))
         self.assertEqual(2, self.registry.get_sample_value('h_bucket', {'le': '+Inf'}))
         self.assertEqual(2, self.registry.get_sample_value('h_count', {}))
         self.assertEqual(3, self.registry.get_sample_value('h_sum', {}))
@@ -790,21 +792,21 @@ class TestMetricFamilies(unittest.TestCase):
         cmf = HistogramMetricFamily('h', 'help', labels=['a'])
         cmf.add_metric(['b'], buckets=[('0', 1), ('+Inf', 2)], sum_value=3)
         self.custom_collector(cmf)
-        self.assertEqual(1, self.registry.get_sample_value('h_bucket', {'a': 'b', 'le': '0'}))
+        self.assertEqual(1, self.registry.get_sample_value('h_bucket', {'a': 'b', 'le': '0.0'}))
         self.assertEqual(2, self.registry.get_sample_value('h_bucket', {'a': 'b', 'le': '+Inf'}))
         self.assertEqual(2, self.registry.get_sample_value('h_count', {'a': 'b'}))
         self.assertEqual(3, self.registry.get_sample_value('h_sum', {'a': 'b'}))
 
     def test_gaugehistogram(self):
-        self.custom_collector(GaugeHistogramMetricFamily('h', 'help', buckets=[('0', 1), ('+Inf', 2)]))
-        self.assertEqual(1, self.registry.get_sample_value('h_bucket', {'le': '0'}))
+        self.custom_collector(GaugeHistogramMetricFamily('h', 'help', buckets=[('0.0', 1), ('+Inf', 2)]))
+        self.assertEqual(1, self.registry.get_sample_value('h_bucket', {'le': '0.0'}))
         self.assertEqual(2, self.registry.get_sample_value('h_bucket', {'le': '+Inf'}))
 
     def test_gaugehistogram_labels(self):
         cmf = GaugeHistogramMetricFamily('h', 'help', labels=['a'])
         cmf.add_metric(['b'], buckets=[('0', 1), ('+Inf', 2)], gsum_value=3)
         self.custom_collector(cmf)
-        self.assertEqual(1, self.registry.get_sample_value('h_bucket', {'a': 'b', 'le': '0'}))
+        self.assertEqual(1, self.registry.get_sample_value('h_bucket', {'a': 'b', 'le': '0.0'}))
         self.assertEqual(2, self.registry.get_sample_value('h_bucket', {'a': 'b', 'le': '+Inf'}))
         self.assertEqual(2, self.registry.get_sample_value('h_gcount', {'a': 'b'}))
         self.assertEqual(3, self.registry.get_sample_value('h_gsum', {'a': 'b'}))

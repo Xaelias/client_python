@@ -123,10 +123,10 @@ class Metric:
 
     def _restricted_metric(self, names):
         """Build a snapshot of a metric with samples restricted to a given set of names."""
-        metrics = [m for m in self.pb_mf.metric if m.name in names]
-        if metrics:
+        samples = [sample for sample in self.samples if sample.name in names]
+        if samples:
             m = Metric(self.name, self.documentation, self.type, self.unit)
-            m.pb_mf.metric.extend(metrics)
+            m.samples = samples
             return m
         return None
 
@@ -185,7 +185,7 @@ class CounterMetricFamily(Metric):
                  labels: Optional[Sequence[str]] = None,
                  created: Optional[float] = None,  # alesieur
                  unit: str = '',
-                 exemplar: Optional[Exemplar] = None,
+                 exemplar: Optional[Union[Exemplar, dict]] = None,
                  ):
         # Glue code for pre-OpenMetrics metrics.
         if name.endswith('_total'):
@@ -204,7 +204,7 @@ class CounterMetricFamily(Metric):
                    value: float,
                    created: Optional[float] = None,
                    timestamp: Optional[Union[Timestamp, float]] = None,
-                   exemplar: Optional[Exemplar] = None,
+                   exemplar: Optional[Union[Exemplar, dict]] = None,
                    ) -> None:
         """Add a metric to the metric family.
 
@@ -213,6 +213,9 @@ class CounterMetricFamily(Metric):
           value: The value of the metric
           created: Optional unix timestamp the child was created at.
         """
+        if isinstance(exemplar, dict):
+            exemplar = Exemplar(value=value, labels=exemplar, timestamp=timestamp)
+
         try:
             self.pb_mf.metric.append(
                 make_counter_metric(
