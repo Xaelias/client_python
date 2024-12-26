@@ -12,9 +12,8 @@
 // limitations under the License.
 
 // This is copied and lightly edited from
-// github.com/prometheus/client_model/io/prometheus/client/metrics.proto
-// and finally converted to proto3 syntax to make it usable for the
-// gogo-protobuf approach taken within prometheus/prometheus.
+// https://github.com/prometheus/prometheus/tree/main/prompb/io/prometheus/client
+// all the `optional` fields are derived from the golang implementation
 
 syntax = "proto3";
 
@@ -48,10 +47,10 @@ message Gauge {
 }
 
 message Counter {
-  double   value    = 1;
-  Exemplar exemplar = 2;
+  double            value    = 1;
+  optional Exemplar exemplar = 2;
 
-  google.protobuf.Timestamp  created_timestamp = 3;
+  optional google.protobuf.Timestamp  created_timestamp = 3;
 }
 
 message Quantile {
@@ -64,7 +63,7 @@ message Summary {
   double            sample_sum   = 2;
   repeated Quantile quantile     = 3;
 
-  google.protobuf.Timestamp  created_timestamp = 4;
+  optional google.protobuf.Timestamp  created_timestamp = 4;
 }
 
 message Untyped {
@@ -78,7 +77,7 @@ message Histogram {
   // Buckets for the classic histogram.
   repeated Bucket bucket = 3; // Ordered in increasing order of upper_bound, +Inf bucket is optional.
 
-  google.protobuf.Timestamp created_timestamp = 15;
+  optional google.protobuf.Timestamp created_timestamp = 15;
 
   // Everything below here is for native histograms (also known as sparse histograms).
   // Native histograms are an experimental feature without stability guarantees.
@@ -117,10 +116,10 @@ message Histogram {
 }
 
 message Bucket {
-  uint64   cumulative_count       = 1; // Cumulative in increasing order.
-  double   cumulative_count_float = 4; // Overrides cumulative_count if > 0.
-  double   upper_bound            = 2; // Inclusive.
-  Exemplar exemplar               = 3;
+  uint64            cumulative_count       = 1; // Cumulative in increasing order.
+  double            cumulative_count_float = 4; // Overrides cumulative_count if > 0.
+  double            upper_bound            = 2; // Inclusive.
+  optional Exemplar exemplar               = 3;
 }
 
 // A BucketSpan defines a number of consecutive buckets in a native
@@ -135,19 +134,19 @@ message BucketSpan {
 }
 
 message Exemplar {
-  repeated LabelPair        label     = 1;
-  double                    value     = 2;
-  google.protobuf.Timestamp timestamp = 3; // OpenMetrics-style.
+  repeated LabelPair                 label     = 1;
+  double                             value     = 2;
+  optional google.protobuf.Timestamp timestamp = 3; // OpenMetrics-style.
 }
 
 message Metric {
-  repeated LabelPair label        = 1;
-  Gauge              gauge        = 2;
-  Counter            counter      = 3;
-  Summary            summary      = 4;
-  Untyped            untyped      = 5;
-  Histogram          histogram    = 7;
-  int64              timestamp_ms = 6;
+  repeated LabelPair          label        = 1;
+  optional Gauge              gauge        = 2;
+  optional Counter            counter      = 3;
+  optional Summary            summary      = 4;
+  optional Untyped            untyped      = 5;
+  optional Histogram          histogram    = 7;
+  int64                       timestamp_ms = 6;
 }
 
 message MetricFamily {
