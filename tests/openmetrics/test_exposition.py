@@ -16,7 +16,7 @@ class TestGenerateText(unittest.TestCase):
 
         # Mock time so _created values are fixed.
         self.old_time = time.time
-        time.time = lambda: 123.456
+        time.time = lambda: 123.456789
 
     def tearDown(self):
         time.time = self.old_time
@@ -31,25 +31,25 @@ class TestGenerateText(unittest.TestCase):
     def test_counter(self):
         c = Counter('cc', 'A counter', registry=self.registry)
         c.inc()
-        self.assertEqual(b'# HELP cc A counter\n# TYPE cc counter\ncc_total 1.0\ncc_created 123.456\n# EOF\n',
+        self.assertEqual(b'# HELP cc A counter\n# TYPE cc counter\ncc_total 1.0\ncc_created 123.456789\n# EOF\n',
                          generate_latest(self.registry))
 
     def test_counter_utf8(self):
         c = Counter('cc.with.dots', 'A counter', registry=self.registry)
         c.inc()
-        self.assertEqual(b'# HELP "cc.with.dots" A counter\n# TYPE "cc.with.dots" counter\n{"cc.with.dots_total"} 1.0\n{"cc.with.dots_created"} 123.456\n# EOF\n',
+        self.assertEqual(b'# HELP "cc.with.dots" A counter\n# TYPE "cc.with.dots" counter\n{"cc.with.dots_total"} 1.0\n{"cc.with.dots_created"} 123.456789\n# EOF\n',
                          generate_latest(self.registry))
 
     def test_counter_total(self):
         c = Counter('cc_total', 'A counter', registry=self.registry)
         c.inc()
-        self.assertEqual(b'# HELP cc A counter\n# TYPE cc counter\ncc_total 1.0\ncc_created 123.456\n# EOF\n',
+        self.assertEqual(b'# HELP cc A counter\n# TYPE cc counter\ncc_total 1.0\ncc_created 123.456789\n# EOF\n',
                          generate_latest(self.registry))
 
     def test_counter_unit(self):
         c = Counter('cc_seconds', 'A counter', registry=self.registry, unit="seconds")
         c.inc()
-        self.assertEqual(b'# HELP cc_seconds A counter\n# TYPE cc_seconds counter\n# UNIT cc_seconds seconds\ncc_seconds_total 1.0\ncc_seconds_created 123.456\n# EOF\n',
+        self.assertEqual(b'# HELP cc_seconds A counter\n# TYPE cc_seconds counter\n# UNIT cc_seconds seconds\ncc_seconds_total 1.0\ncc_seconds_created 123.456789\n# EOF\n',
                          generate_latest(self.registry))
 
     def test_gauge(self):
@@ -64,7 +64,7 @@ class TestGenerateText(unittest.TestCase):
 # TYPE ss summary
 ss_count{a="c",b="d"} 1.0
 ss_sum{a="c",b="d"} 17.0
-ss_created{a="c",b="d"} 123.456
+ss_created{a="c",b="d"} 123.456789
 # EOF
 """, generate_latest(self.registry))
 
@@ -90,7 +90,7 @@ hh_bucket{le="10.0"} 1.0
 hh_bucket{le="+Inf"} 1.0
 hh_count 1.0
 hh_sum 0.05
-hh_created 123.456
+hh_created 123.456789
 # EOF
 """, generate_latest(self.registry))
 
@@ -105,12 +105,11 @@ hh_bucket{le="0.0"} 1.0
 hh_bucket{le="0.5"} 1.0
 hh_bucket{le="1.0"} 1.0
 hh_bucket{le="+Inf"} 1.0
-hh_created 123.456
+hh_created 123.456789
 # EOF
 """, generate_latest(self.registry))
 
     def test_histogram_exemplar(self):
-        self.maxDiff = None
         s = Histogram('hh', 'A histogram', buckets=[1, 2, 3, 4], registry=self.registry)
         s.observe(0.5, {'a': 'b'})
         s.observe(1.5, {'le': '7'})
@@ -118,14 +117,14 @@ hh_created 123.456
         s.observe(3.5, {'a': '\n"\\'})
         self.assertEqual(b"""# HELP hh A histogram
 # TYPE hh histogram
-hh_bucket{le="1.0"} 1.0 # {a="b"} 0.5 123.456000000
-hh_bucket{le="2.0"} 2.0 # {le="7"} 1.5 123.456000000
-hh_bucket{le="3.0"} 3.0 # {a="b"} 2.5 123.456000000
-hh_bucket{le="4.0"} 4.0 # {a="\\n\\"\\\\"} 3.5 123.456000000
+hh_bucket{le="1.0"} 1.0 # {a="b"} 0.5 123.456789000
+hh_bucket{le="2.0"} 2.0 # {le="7"} 1.5 123.456789000
+hh_bucket{le="3.0"} 3.0 # {a="b"} 2.5 123.456789000
+hh_bucket{le="4.0"} 4.0 # {a="\\n\\"\\\\"} 3.5 123.456789000
 hh_bucket{le="+Inf"} 4.0
 hh_count 4.0
 hh_sum 8.0
-hh_created 123.456
+hh_created 123.456789
 # EOF
 """, generate_latest(self.registry))
 
@@ -134,8 +133,8 @@ hh_created 123.456
         c.inc(exemplar={'a': 'b'})
         self.assertEqual(b"""# HELP cc A counter
 # TYPE cc counter
-cc_total 1.0 # {a="b"} 1.0 123.456000000
-cc_created 123.456
+cc_total 1.0 # {a="b"} 1.0 123.456789000
+cc_created 123.456789
 # EOF
 """, generate_latest(self.registry))
 
@@ -224,7 +223,7 @@ ee{a="c",b="d",ee="bar"} 1.0
         self.assertEqual(b"""# HELP cc \xe4\x94\x80
 # TYPE cc counter
 cc_total{l="\xe4\x94\x80"} 1.0
-cc_created{l="\xe4\x94\x80"} 123.456
+cc_created{l="\xe4\x94\x80"} 123.456789
 # EOF
 """, generate_latest(self.registry))
 
@@ -234,7 +233,7 @@ cc_created{l="\xe4\x94\x80"} 123.456
         self.assertEqual(b"""# HELP cc A\\ncount\\\\er\\"
 # TYPE cc counter
 cc_total{a="\\\\x\\n\\""} 1.0
-cc_created{a="\\\\x\\n\\""} 123.456
+cc_created{a="\\\\x\\n\\""} 123.456789
 # EOF
 """, generate_latest(self.registry))
 

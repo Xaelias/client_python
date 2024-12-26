@@ -146,7 +146,7 @@ message Metric {
   optional Summary            summary      = 4;
   optional Untyped            untyped      = 5;
   optional Histogram          histogram    = 7;
-  int64                       timestamp_ms = 6;
+  optional int64              timestamp_ms = 6;
 }
 
 message MetricFamily {
