@@ -2,13 +2,13 @@ from typing import Iterable, Optional, Sequence, Tuple, Union
 
 from google.protobuf.timestamp_pb2 import Timestamp as PBTimestamp
 
+from ..samples import Exemplar as ExemplarTuple
+from ..samples import Sample, Timestamp
+from ..utils import floatToGoString
 from .metrics_pb2 import (
     Bucket, Counter, Exemplar, Gauge, Histogram, LabelPair, Metric, Summary,
     Untyped,
 )
-from ..samples import Exemplar as ExemplarTuple
-from ..samples import Sample, Timestamp
-from ..utils import floatToGoString
 
 
 def convert_timestamp_to_timestampms(timestamp: Optional[Union[Timestamp, float, int]]) -> Optional[int]:
