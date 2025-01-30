@@ -1,10 +1,10 @@
-from typing import Iterable, Optional, Sequence, Tuple, Union
+from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 from google.protobuf.timestamp_pb2 import Timestamp as PBTimestamp
 
 from .metrics_pb2 import (
-    Bucket, Counter, Exemplar, Gauge, Histogram, LabelPair, Metric, Summary,
-    Untyped,
+    Bucket, BucketSpan, Counter, Exemplar, Gauge, Histogram, HistogramCounts,
+    LabelPair, Metric, Summary, Untyped,
 )
 from ..samples import Exemplar as ExemplarTuple
 from ..samples import Sample, Timestamp
@@ -190,6 +190,83 @@ def make_histogram_metric(
             created_timestamp=convert_timestamp_to_pbtimestamp(created),
         ),
         timestamp_ms=convert_timestamp_to_timestampms(timestamp),
+    )
+
+
+def _make_native_histogram_buckets(buckets: dict) -> tuple[list[BucketSpan], list[int]]:
+    if len(buckets) == 0:
+        return [], []
+
+    spans: List[BucketSpan] = []
+    deltas: List[int] = []
+    prev_count = 0
+    next_idx = 0
+
+    def append_delta(count: int) -> None:
+        nonlocal prev_count
+        spans[-1].length += 1
+        deltas.append(count - prev_count)
+        prev_count = count
+
+    for idx in sorted(buckets.keys()):
+        count = buckets[idx]
+        idx_delta = idx - next_idx
+        if idx == 0 or idx_delta > 2:
+            spans.append(
+                BucketSpan(
+                    offset=idx_delta,
+                    length=0,
+                )
+            )
+        else:
+            for j in range(idx_delta):
+                append_delta(0)
+        append_delta(count)
+        next_idx = idx + 1
+    return spans, deltas
+
+
+def make_native_histogram_metric(
+    label_names: Sequence[str],
+    label_values: Sequence[str],
+    buckets: Sequence[Union[Tuple[str, float], Tuple[str, float, ExemplarTuple]]],
+    cold_counts: HistogramCounts,
+    created: Optional[float] = None,
+) -> Metric:
+    pb_buckets = []
+    for bucket in buckets:
+        bound, count = bucket[:2]
+        if not isinstance(count, (int, float)):
+            raise TypeError(f"Invalid type for bucket count: {type(count)}")
+
+        exemplar = None
+        if len(bucket) == 3:
+            exemplar = convert_exemplar_to_pbexemplar(bucket[2])  # type: ignore
+        pb_buckets.append(Bucket(cumulative_count_float=count, upper_bound=float(bound), exemplar=exemplar))
+
+    with cold_counts.nh_buckets_negative_lock:
+        negative_span, negative_delta = _make_native_histogram_buckets(cold_counts.nh_buckets_negative)
+    with cold_counts.nh_buckets_positive_lock:
+        positive_span, positive_delta = _make_native_histogram_buckets(cold_counts.nh_buckets_positive)
+
+    return Metric(
+        label=[LabelPair(name=k, value=v) for k, v in zip(label_names, label_values)],
+        histogram=Histogram(
+            sample_count_float=cold_counts.count.get(),
+            sample_sum=cold_counts.sum.get(),
+            bucket=pb_buckets,
+            created_timestamp=convert_timestamp_to_pbtimestamp(created),
+            schema=cold_counts.nh_schema.get(),
+            zero_threshold=cold_counts.nh_zero_threshold.get(),
+            zero_count_float=cold_counts.nh_zero_bucket.get(),
+            negative_span=negative_span,
+            negative_delta=negative_delta,
+            # negative_count=[...],  # double
+            positive_span=positive_span,
+            positive_delta=positive_delta,
+            # positive_count=[...],  # double
+            # exemplars=[...],  # must have ts
+        ),
     )
 
 
